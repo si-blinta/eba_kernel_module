@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Linux Kernel Module - ARM64",
+            "includePath": [
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/include/**",
+                "/lib/modules/6.6.51+rpt-rpi-v8/build/include",
+                "/lib/modules/6.6.51+rpt-rpi-v8/build/arch/arm64/include",
+                "/lib/modules/6.6.51+rpt-rpi-v8/build/include/generated",
+                "~/linux-kernel/include",
+                "~/linux-kernel/arch/arm64/include"
+            ],
+            "defines": [
+                "__KERNEL__",
+                "MODULE"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu89",
+            "intelliSenseMode": "linux-gcc-arm64"
+        }
+    ],
+    "version": 4
+}

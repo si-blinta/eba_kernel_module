@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "module.h": "c",
+        "fscrypt.h": "c",
+        "limits.h": "c",
+        "device.h": "c",
+        "llist.h": "c",
+        "kdev_t.h": "c",
+        "cdev.h": "c",
+        "uaccess.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
+}
