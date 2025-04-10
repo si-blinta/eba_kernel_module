@@ -1,5 +1,3 @@
 10 april : 
 finish the init of memory pool using gen_pool, accept allocations, store , read, write , in a clean way, look for optimisation and logs
 logs are essential, error checking also 
-
-

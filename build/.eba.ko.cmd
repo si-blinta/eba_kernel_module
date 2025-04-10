@@ -1,0 +1,1 @@
+savedcmd_/home/nader/eba_kernel_module/build/eba.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /home/nader/eba_kernel_module/build/eba.ko /home/nader/eba_kernel_module/build/eba.o /home/nader/eba_kernel_module/build/eba.mod.o

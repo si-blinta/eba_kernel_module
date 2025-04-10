@@ -8,7 +8,9 @@
         "llist.h": "c",
         "kdev_t.h": "c",
         "cdev.h": "c",
-        "uaccess.h": "c"
+        "uaccess.h": "c",
+        "eba_internals.h": "c",
+        "init.h": "c"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

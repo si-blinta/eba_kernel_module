@@ -5,11 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/src/**",
                 "${workspaceFolder}/include/**",
-                "/lib/modules/6.6.51+rpt-rpi-v8/build/include",
-                "/lib/modules/6.6.51+rpt-rpi-v8/build/arch/arm64/include",
-                "/lib/modules/6.6.51+rpt-rpi-v8/build/include/generated",
-                "~/linux-kernel/include",
-                "~/linux-kernel/arch/arm64/include"
+                "/home/nader/linux-src/include/**",
+                "/home/nader/linux-src/arch/arm64/include/**"
             ],
             "defines": [
                 "__KERNEL__",

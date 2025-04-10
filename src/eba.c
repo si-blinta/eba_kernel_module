@@ -10,69 +10,40 @@
  * Version: 1.0
  */
 
- #include <linux/module.h>      // Core header for loading LKMs into the kernel
- #include <linux/init.h>        // Macros used to mark up functions e.g., __init, __exit
- #include <linux/fs.h>          // File operations and device registration
- #include <linux/cdev.h>        // Character device definitions
- #include <linux/device.h>      // Device creation
- #include <linux/uaccess.h>     // Copy to/from user functions
+#include <linux/module.h>      // Core header for loading LKMs into the kernel
+#include <linux/init.h>        // Macros used to mark up functions e.g., __init, __exit
+#include "eba_internals.h"
  
- #include "eba.h"               // Public definitions, including ioctl commands
- 
- /* Define device name and class names */
- #define DEVICE_NAME "eba"
- #define CLASS_NAME  "eba_class"
- 
+#include "eba.h"               // Public definitions, including ioctl commands
  /* Module information */
- MODULE_LICENSE("GPL");
- MODULE_AUTHOR("Nader BEN AMMAR");
- MODULE_DESCRIPTION("EBA Kernel Module with IOCTL Support");
- MODULE_VERSION("0.1");
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Nader BEN AMMAR");
+MODULE_DESCRIPTION("EBA Kernel Module with IOCTL Support");
+MODULE_VERSION("0.1");
  
- /*
-  * eba_init - Module initialization function.
-  *
-  * This function registers the device, allocates major number, sets up
-  * the character device, and creates the device node in /dev/.
-  */
- static int __init eba_init(void)
- {
- 
-     pr_info("EBA: Initializing the module\n");
- 
+static int __init eba_module_init(void)
+{
+    int ret;
 
-     return 0;
- }
- 
- /*
-  * eba_exit - Module cleanup function.
-  *
-  * This function removes the device, unregisters the character device,
-  * and frees allocated resources.
-  */
- static void __exit eba_exit(void)
- {
-     pr_info("EBA: Module unloaded successfully\n");
- }
- 
- /*
-  * eba_open - Open the device.
-  *
-  * This function is called each time the device is opened.
-  */
- static int eba_open(struct inode *inode, struct file *file)
- {
-     pr_info("EBA: Device opened\n");
-     return 0;
- }
- 
- /*
-  * eba_release - Close the device.
-  *
-  * This function is called when the device is closed.
-  */
- static int eba_release(struct inode *inode, struct file *file)
- {
-     pr_info("EBA: Device closed\n");
-     return 0;
- }
+    ret = eba_internals_mempool_init();
+    if (ret)
+         return ret;
+
+    /* Optional: Run the stress test immediately (for testing only) */
+    ret = eba_internals_memory_stress();
+    if (ret)
+         pr_err("EBA: Memory stress test failed\n");
+    else
+         pr_info("EBA: Memory stress test passed\n");
+
+    pr_info("EBA: Module loaded\n");
+    return 0;
+}
+
+static void __exit eba_module_exit(void)
+{
+    eba_internals_mempool_cleanup();
+    pr_info("EBA: Module unloaded\n");
+}
+module_init(eba_module_init);
+module_exit(eba_module_exit);
