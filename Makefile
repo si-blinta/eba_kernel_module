@@ -9,7 +9,7 @@ obj-m := eba.o
 # 	to add
 #   eba-y := ../src/hello.o ../src/another.o
 
-eba-y := ../src/eba.o ../src/eba_net.o ../src/eba_internals.o
+eba-y := ../src/eba.o ../src/eba_net.o ../src/eba_internals.o ../src/ebp.o
 
 # If you need custom headers from ../include/
 # $(src) will expand to the directory of this Makefile (i.e. "build" after copy).
@@ -35,7 +35,7 @@ all:
 	find src ! -name '*.c' -type f -delete
 
 clean:
-	rm -rf build
+	rm -rf build lib
 
 # Load (insert) the module
 load:
@@ -50,5 +50,16 @@ remove:
 	@sudo rmmod eba
 	@dmesg | tail
 	@lsmod | grep eba || echo "Module not loaded."
+	
+# Target to build the user-space library from eba_user.c and put it in lib/
+lib:
+	@echo "Building user-space API library..."
+	@mkdir -p lib
+	$(CC) -O2 -Wall -fPIC -I$(PWD)/include -c src/eba_user.c -o lib/eba_user.o
+	$(CC) -shared -o lib/libeba.so lib/eba_user.o
+	@echo ""
+	@echo "User library libeba.so created successfully in the lib folder."
+	@echo "To compile your user application, use a command like:"
+	@echo "   gcc -o myapp myapp.c -I$(PWD)/include -L$(PWD)/lib -leba"
 	
 endif
