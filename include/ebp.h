@@ -5,7 +5,7 @@
 #include <linux/if_ether.h>
 #include <linux/errno.h>
 #include <linux/types.h> 
-#define EBA_ETHERTYPE 0xEBA0
+#define EBP_ETHERTYPE 0xEBP0
 
 #define MAX_NODE_COUNT    10
 #define MAX_INVOKE_COUNT  20
@@ -48,13 +48,22 @@ struct invoke_tracker {
 };
 
 /**
- * struct op_entry - Represents an operation entry in the EBA protocol.
- * @param op_id:  Operation identifier.
- * @param op_ptr: Pointer to the corresponding operation function.
+ * @brief The function pointer type used by each op_entry.
+ * 
+ * All operation handlers take a pointer to the raw arguments buffer 
+ * plus its length. Inside the handler, you cast and parse `args` as needed.
+ */
+typedef int (*EBP_OP_handler_t)(const void *args, size_t arg_len);
+
+/**
+ * @struct op_entry
+ * @brief Represents an operation entry in the EBA protocol.
+ * @param op_id   Operation identifier.
+ * @param op_ptr  Pointer to the corresponding operation function (EBP_OP_handler_t).
  */
 struct op_entry {
-    uint16_t op_id;
-    void* op_ptr;
+    uint16_t          op_id;
+    EBP_OP_handler_t  op_ptr;
 };
 
 /**
@@ -89,49 +98,75 @@ int invoke_tracker_array_init(void);
 int op_entry_array_init(void);
 
 /* EBA Message Types */
-enum EBA_MSG
+enum EBP_MSG
 {
-    EBA_MSG_DISCOVER = 0x01,
-    EBA_MSG_INVOKE,
-    EBA_MSG_DISCOVER_ACK,
-    EBA_MSG_INVOKE_ACK
+    EBP_MSG_DISCOVER = 0x01,
+    EBP_MSG_INVOKE,
+    EBP_MSG_DISCOVER_ACK,
+    EBP_MSG_INVOKE_ACK
 };
 
 /**
- * struct eba_header - Minimal EBA protocol header.
+ * @brief Enumerates the internal EBA operation IDs.
+ * 
+ * You can map these IDs to the functions or wrappers that will be stored
+ * in the op_entry array. Make sure these do not collide with any other
+ * IDs you use in your system.
+ */
+enum EBP_OP_IDS {
+    EBP_OP_ALLOC = 1,
+    EBP_OP_READ  = 2,
+    EBP_OP_WRITE = 3,
+};
+
+/**
+ * @brief Arguments for the internal EBA "write" operation.
+ *
+ * These are the parameters the wrapper function `op_eba_write()`
+ * will receive to call `eba_internals_write()`.
+ */
+struct ebp_op_write_args {
+    const void *src;    /**< Pointer to the source data to be written into the buffer. */
+    uint64_t    buff_id; /**< The identifier (virtual address) of the buffer. */
+    uint64_t    offset;  /**< The offset (in bytes) from where to start writing. */
+    uint64_t    size;    /**< The number of bytes to write. */
+};
+
+/**
+ * struct ebp_header - Minimal EBA protocol header.
  * @param msgType: Indicates the type of EBA message.
  *
  * This header is placed immediately after the Ethernet header.
  */
-struct eba_header {
+struct ebp_header {
     uint8_t msgType;
 } __attribute__((packed));
 
 /**
  * struct eba_discover_req - Structure for the EBA Discover Request message.
- * @param msgType: Message type, should be set to EBA_MSG_DISCOVER.
+ * @param msgType: Message type, should be set to EBP_MSG_DISCOVER.
  * @param mtu: The maximum transmission unit (2 bytes) of the sender.
  *
  * This message is broadcast by a node on startup to initiate neighbor discovery.
  */
-struct eba_discover_req {
-    struct eba_header header;
+struct ebp_discover_req {
+    struct ebp_header header;
     uint16_t mtu;
 } __attribute__((packed));
 
 /**
- * struct eba_discover_ack - Structure for the EBA Discover Acknowledgment message.
+ * struct ebp_discover_ack - Structure for the EBA Discover Acknowledgment message.
  * @param buffer_id: A 64-bits identifier of the buffer containing node information.
  *
  * The receiving node uses this message to respond to a discovery request.
  */
-struct eba_discover_ack {
-    struct eba_header header;
+struct ebp_discover_ack {
+    struct ebp_header header;
     uint64_t buffer_id;
 } __attribute__((packed));
 
 /**
- * struct eba_invoke_req - Structure for the EBA Invoke Request message.
+ * struct ebp_invoke_req - Structure for the EBA Invoke Request message.
  * @param iid:  A 32-bit Invocation ID.
  * @param opid: A 32-bit Operation ID identifying the requested operation.
  * @param args_len: A 64-bit size of args.
@@ -139,8 +174,8 @@ struct eba_discover_ack {
  *
  * This message is used to remotely invoke operations on another node.
  */
-struct eba_invoke_req {
-    struct eba_header header;
+struct ebp_invoke_req {
+    struct ebp_header header;
     uint32_t iid;
     uint32_t opid;
     uint64_t args_len;
@@ -148,14 +183,14 @@ struct eba_invoke_req {
 } __attribute__((packed));
 
 /**
- * struct eba_invoke_ack - Structure for the EBA Invoke Acknowledgment message.
+ * struct ebp_invoke_ack - Structure for the EBA Invoke Acknowledgment message.
  * @param status: A status code indicating whether the invocation has been queued,
  *          completed, or encountered an error.
  *
  * This message acknowledges a previously received Invoke Request.
  */
-struct eba_invoke_ack {
-    struct eba_header header;
+struct ebp_invoke_ack {
+    struct ebp_header header;
     uint8_t status;
 } __attribute__((packed));
 
@@ -175,37 +210,121 @@ struct eba_invoke_ack {
  */
 int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
 
-char *build_discover_req_packet(uint16_t mtu, size_t *out_len);
-char *build_discover_ack_packet(uint64_t buffer_id, size_t *out_len);
-char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
-    const char *args, uint64_t args_len,
-    size_t *out_len);
-char *build_invoke_ack_packet(uint8_t status, size_t *out_len);
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** 
+ * @brief Build a Discover Request packet.
+ * @param mtu: the MTU value to send.
+ * @param out_len: returns the total packet length. ( must be passed as a pointer init with value 0)
+ * @returns Packet that needs to be freed 
+ */
+char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len);
 
 
 /**
-*
+ * @brief Build a Discover-Ack packet.
+ * @param buffer_id: the 64-bit identifier.
+ * @param out_len: returns the packet length. ( must be passed as a pointer init with value 0)
+ * @returns Packet that needs to be freed 
+ */
+char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len);
+
+/**
+ * @brief Build an Invoke Request packet.
+ * @param iid: 32-bit Invocation ID.
+ * @param opid: 32-bit Operation ID.
+ * @param args: pointer to the argument data.
+ * @param args_len: length in bytes of the argument data.
+ * @param out_len: returns the packet length. ( must be passed as a pointer init with value 0)
+ * @returns Packet that needs to be freed !.
+ */
+char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
+    const char *args, uint64_t args_len,
+    uint64_t *out_len);
+
+/**
+ * @brief Build an Invoke Request packet.
+ * @param status: 8-bit status code.(enum INVOKE_STATUS)
+ * @param out_len: the packet length. ( must be passed as a pointer init with value 0)
+ * @returns Packet that needs to be freed !.
+ */
+char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len);
+
+/**
 * Registers our packet handler so that Ethernet frames with the specified protocol
 * are delivered to our callback.
 *
 * @returns: 0 on success or a negative error code on failure.
 */
 void ebp_init(void);
+
 /*
 * Unregisters the packet handler from the networking stack.
 */
 void ebp_exit(void);
+
+
+/**
+ * @brief This function will call the write function that is exposed to remote nodes.
+ * @param args Arguments from the invoke packet.
+ * @param arg_len Length of the arguments.
+ * @returns 0 on succes 1 on fail.
+ */
+
+int ebp_op_write_handler(const void *args, size_t arg_len);
+
+/**
+ * @brief Registers an operation into the global op_entries array.
+ * @param op_id The operation ID
+ * @param fn    The function pointer implementing that ID.
+ * @return 0 on success, negative on failure.
+ */
+int ebp_register_op(uint16_t op_id, EBP_OP_handler_t fn);
+
+/**
+ * @brief Finds and calls the handler in op_entries by op_id.
+ * @param op_id    The ID to look for.
+ * @param args     Pointer to raw argument data.
+ * @param arg_len  Length of the argument data in bytes.
+ * @return The handler's return value, or a negative error if not found.
+ */
+int ebp_invoke_op(uint32_t op_id, const void *args, size_t arg_len);
+
+/**
+ * EBP_OPs_init - Registers the default EBA operations in the op_entries array.
+ *
+ * Return: 0 on success, negative error code on partial success/failure.
+ */
+int ebp_ops_init(void)
+
+
+
+
+
+
+
+/*
+    TODO:
+    For this node ebp implementation : 
+        Add the prototypes of operations on this node ( remote allocation, write, read , etc)
+        Add a manlike file for the description of the node
+        Complete the implementation of the write operation ( First simply call the operation, and send an invoke ack, test it ,
+        second use the invocation queue, use the queue to depop tasks to execute ! )
+        Complete the allocation + read
+        Improve them using the queue.
+        Then expose the remote_API to users via the library to send each packet.
+
+
+
+
+
+
+
+*/
+
+
+
+
+
+
+
+
 #endif
