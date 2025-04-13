@@ -1,9 +1,10 @@
 #include "ebp.h"
+#include "eba_internals.h"
 /*
  * Global packet_type structure for our extended buffer protocol.
  */
 struct packet_type ebp_packet_type = {
-    .type = htons(EBA_ETHERTYPE), /* Custom protocol type in network byte order */
+    .type = htons(EBP_ETHERTYPE), /* Custom protocol type in network byte order */
     .dev = NULL,                  /* NULL = match on all devices */
     .func = ebp_handle_packets,   /* Packet receive callback function */
 };
@@ -82,7 +83,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             /*debug
             char *arg_data = (char *)inv->args;
             pr_info("args = %s", arg_data);*/
-            int ret = ebp_invoke_op(opid, inv->args, (size_t)args_len);
+            int ret = ebp_invoke_op(opid, inv->args, args_len);
             if (ret < 0) {
                 pr_err("EBP: ebp_invoke_op(opid=%u) failed ret=%d\n", opid, ret);
                 /* Possibly build & send an error ack or something... TODO */
@@ -114,7 +115,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
 
 void ebp_init(void)
 {
-    pr_info("EBP: Initializing packet receiver for protocol 0x%04x\n", EBA_ETHERTYPE);
+    pr_info("EBP: Initializing packet receiver for protocol EBPETHERTYPE\n");
     dev_add_pack(&ebp_packet_type);
     pr_info("EBP: Initializing Node structures: Node info, invoke tracker, op entries \n");
     node_info_array_init();
@@ -132,7 +133,16 @@ void ebp_exit(void)
 struct node_info node_infos[MAX_NODE_COUNT];
 struct invoke_tracker invoke_trackers[MAX_INVOKE_COUNT];
 struct op_entry op_entries[MAX_OP_COUNT];
-
+void print_op_entries(void)
+{
+    int i;
+    pr_info("=== op_entries Array Dump ===\n");
+    for (i = 0; i < MAX_OP_COUNT; i++) {
+        pr_info("Slot %d: op_id = %u, op_ptr = %p\n", 
+                 i, op_entries[i].op_id, op_entries[i].op_ptr);
+    }
+    pr_info("=============================\n");
+}
 int node_info_array_init(void)
 {
     uint64_t i;
@@ -170,27 +180,33 @@ int op_entry_array_init(void)
     }
     return 0;
 }
-int eba_register_op(uint16_t op_id, ebp_op_handler_t fn)
+int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn)
 {
     int i;
 
-    /* Quick check if already registered or function is null */
     if (!fn) {
         pr_err("eba_register_op: null function pointer\n");
         return -EINVAL;
     }
+    
+    /* Check if this op_id is already registered */
     for (i = 0; i < MAX_OP_COUNT; i++) {
         if (op_entries[i].op_id == op_id) {
-            pr_err("eba_register_op: op_id %u already exists\n", op_id);
-            return -EEXIST; 
+            pr_err("eba_register_op: op_id %u already exists (slot %d)\n", op_id, i);
+            return -EEXIST;
         }
     }
+
     /* Find a free entry */
     for (i = 0; i < MAX_OP_COUNT; i++) {
         if (op_entries[i].op_ptr == NULL && op_entries[i].op_id == 0) {
             op_entries[i].op_id  = op_id;
             op_entries[i].op_ptr = fn;
             pr_info("Registered op_id %u in slot %d\n", op_id, i);
+            
+            /* Dump op_entries after registration */
+            print_op_entries();
+
             return 0;
         }
     }
@@ -198,13 +214,20 @@ int eba_register_op(uint16_t op_id, ebp_op_handler_t fn)
     return -ENOSPC;
 }
 
-int ebp_invoke_op(uint32_t op_id, const void *args, size_t arg_len)
+
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len)
 {
     int i;
-
+    
+    pr_info("ebp_invoke_op: Received request for op_id %u\n", op_id);
+    /* Dump op_entries before searching */
+    print_op_entries();
+    
     for (i = 0; i < MAX_OP_COUNT; i++) {
-        if (op_entries[i].op_id == op_id && op_entries[i].op_ptr) {
-            /* Found the matching operation; call it. */
+        pr_info("Checking slot %d: op_id = %u, op_ptr = %p\n", 
+                 i, op_entries[i].op_id, op_entries[i].op_ptr);
+        if (op_entries[i].op_id == op_id) {
+            pr_info("Found op_id %u in slot %d, calling handler...\n", op_id, i);
             return op_entries[i].op_ptr(args, arg_len);
         }
     }
@@ -213,10 +236,13 @@ int ebp_invoke_op(uint32_t op_id, const void *args, size_t arg_len)
 }
 
 
+
 int ebp_ops_init(void)
 {
     int ret = 0;
-    if (eba_register_op(EBP_OP_WRITE  ebp_op_write_handler) < 0)
+    if (ebp_register_op(EBP_OP_ALLOC,ebp_op_alloc_handler) < 0)
+        ret = -1;
+    if (ebp_register_op(EBP_OP_WRITE,ebp_op_write_handler) < 0)
         ret = -1;
     return ret;
 }
@@ -262,7 +288,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
         req->args_len = cpu_to_be64(args_len);
     }
     if (args && args_len > 0)
-        memcpy(buf + fixed_len, args, args_len);
+        memcpy(buf + sizeof(struct ebp_invoke_req), args, args_len);
     *out_len = total_len;
     return buf;
 }
@@ -278,14 +304,57 @@ char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len)
     *out_len = len;
     return (char *)ack;
 }
-
-int ebp_op_write_handler(const void *args, size_t arg_len)
+int ebp_op_write_handler(const void *args, uint64_t arg_len)
 {
+    /* Check that args is not NULL and that its is large enough for our fixed-size header */
     if (!args || arg_len < sizeof(struct ebp_op_write_args))
+    {
+        pr_err("ebp_op_write_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_write_args), args);
         return -EINVAL;
+    }
 
     const struct ebp_op_write_args *wr = args;
-    return eba_internals_write(wr->src, wr->buff_id, wr->offset, wr->size);
+    uint64_t header_size = sizeof(struct ebp_op_write_args);
 
-    //TODO send the response ( invoke ack)
+    if (arg_len < header_size + wr->size)
+    {
+        pr_err("ebp_op_write_handler: args too short for payload data: arg_len = %llu, header_size = %llu, expected payload size = %llu\n",
+               arg_len, header_size, wr->size);
+        return -EINVAL;
+    }
+
+    const uint8_t *payload = (const uint8_t *)args + header_size;
+
+    pr_info("ebp_op_write_handler: buff_id = %llx offset = %llu size = %llu\n",wr->buff_id, wr->offset, wr->size);
+     // TODO here inqueue to the invoke queue and send an ack
+    pr_info("ebp_op_write_handler: Dumping payload data:\n");
+    print_hex_dump(KERN_INFO, "payload: ", DUMP_PREFIX_OFFSET, 16, 1,payload, wr->size, true);
+
+    return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
 }
+
+int ebp_op_alloc_handler(const void *args, uint64_t arg_len)
+{
+    /* Check that args is not NULL and that its is large enough for our fixed-size header */
+    if (!args || arg_len < sizeof(struct ebp_op_alloc_args)) {
+        pr_err("ebp_op_alloc_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_alloc_args), args);
+        return -EINVAL;
+    }
+
+    const struct ebp_op_alloc_args *alloc_args = args;
+
+    pr_info("ebp_op_alloc_handler: Allocation request received: size = %llu, life_time = %llu receive bufferID = %llu\n",alloc_args->size, alloc_args->life_time,alloc_args->buffer_id);
+    // TODO here inqueue to the invoke queue and send an ack
+    void* new_buf = eba_internals_malloc(alloc_args->size,alloc_args->life_time);
+    
+    if (!new_buf) {
+        pr_err("ebp_op_alloc_handler: Allocation failed for size %llu\n",alloc_args->size);
+        return -ENOMEM;
+    }
+
+    pr_info("ebp_op_alloc_handler: Allocated buffer id = %p\n",new_buf);
+
+    // TODO send the invoke with ( write request to the concerned node with newbuf as the payload ! ).
+    return 0;
+}
+

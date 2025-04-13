@@ -277,7 +277,10 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
     int found = 0;
 
     if (!data)
+    {
+          pr_err("eba_internals_write: data pointer is NULL\n");
          return -EINVAL;
+    }
 
     /* Locate the tracking structure using buff_id (the allocated virtual address) */
     spin_lock(&eba_buffer_list_lock);
@@ -290,11 +293,15 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
     spin_unlock(&eba_buffer_list_lock);
 
     if (!found)
+    {
+          pr_err("eba_internals_write: Buffer with id 0x%llx not found\n", buff_id);
          return -EINVAL;  /* Buffer not found */
+    }
      spin_lock(&buf->lock);
     /* Check if the write operation is within bounds */
     if (off + size > buf->size)
     {
+          pr_err("eba_internals_write: Write out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size);     
           spin_unlock(&buf->lock);
          return -EINVAL;
     }

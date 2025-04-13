@@ -5,7 +5,7 @@
 #include <linux/if_ether.h>
 #include <linux/errno.h>
 #include <linux/types.h> 
-#define EBP_ETHERTYPE 0xEBP0
+#define EBP_ETHERTYPE 0xEBA0
 
 #define MAX_NODE_COUNT    10
 #define MAX_INVOKE_COUNT  20
@@ -53,17 +53,17 @@ struct invoke_tracker {
  * All operation handlers take a pointer to the raw arguments buffer 
  * plus its length. Inside the handler, you cast and parse `args` as needed.
  */
-typedef int (*EBP_OP_handler_t)(const void *args, size_t arg_len);
+typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len);
 
 /**
  * @struct op_entry
  * @brief Represents an operation entry in the EBA protocol.
  * @param op_id   Operation identifier.
- * @param op_ptr  Pointer to the corresponding operation function (EBP_OP_handler_t).
+ * @param op_ptr  Pointer to the corresponding operation function (ebp_op_handler_t).
  */
 struct op_entry {
-    uint16_t          op_id;
-    EBP_OP_handler_t  op_ptr;
+    uint32_t          op_id;
+    ebp_op_handler_t  op_ptr;
 };
 
 /**
@@ -115,22 +115,39 @@ enum EBP_MSG
  */
 enum EBP_OP_IDS {
     EBP_OP_ALLOC = 1,
-    EBP_OP_READ  = 2,
-    EBP_OP_WRITE = 3,
+    EBP_OP_READ,
+    EBP_OP_WRITE
 };
 
 /**
  * @brief Arguments for the internal EBA "write" operation.
- *
- * These are the parameters the wrapper function `op_eba_write()`
- * will receive to call `eba_internals_write()`.
+ * @param buff_id: The identifier (virtual address) of the target buffer. 
+ * @param offset: The offset (in bytes) from where to start writing.
+ * @param size:  The number of bytes to write..
+ *              unique identifier
  */
 struct ebp_op_write_args {
-    const void *src;    /**< Pointer to the source data to be written into the buffer. */
-    uint64_t    buff_id; /**< The identifier (virtual address) of the buffer. */
-    uint64_t    offset;  /**< The offset (in bytes) from where to start writing. */
-    uint64_t    size;    /**< The number of bytes to write. */
-};
+    uint64_t buff_id;
+    uint64_t offset; 
+    uint64_t size;  
+}__attribute__((packed));
+
+
+/**
+ * @brief Arguments for the internal EBA "alloc" operation.
+ *
+ * These parameters are provided by the remote node to request a buffer allocation.
+ * @param size:       The number of bytes to allocate.
+ * @param life_time:  The lifetime (in a defined unit) of the allocation.
+ * @param buffer_id:  A field that the target node will fill in with the allocated buffer's
+ *              unique identifier.
+ */
+struct ebp_op_alloc_args {
+    uint64_t size;      
+    uint64_t life_time; 
+    uint64_t buffer_id;  
+} __attribute__((packed));
+
 
 /**
  * struct ebp_header - Minimal EBA protocol header.
@@ -261,15 +278,21 @@ void ebp_init(void);
 */
 void ebp_exit(void);
 
+/**
+ * @brief This function will handle the alloc operation when invoked remotely.
+ * @param args Pointer to the invoke packet’s argument blob.
+ * @param arg_len Length of the arguments.
+ * @returns 0 on success or a negative error code on failure.
+ */
+int ebp_op_alloc_handler(const void *args, uint64_t arg_len);
 
 /**
- * @brief This function will call the write function that is exposed to remote nodes.
+ * @brief This function will handle the write operation when invoked remotely.
  * @param args Arguments from the invoke packet.
  * @param arg_len Length of the arguments.
  * @returns 0 on succes 1 on fail.
  */
-
-int ebp_op_write_handler(const void *args, size_t arg_len);
+int ebp_op_write_handler(const void *args, uint64_t arg_len);
 
 /**
  * @brief Registers an operation into the global op_entries array.
@@ -277,7 +300,7 @@ int ebp_op_write_handler(const void *args, size_t arg_len);
  * @param fn    The function pointer implementing that ID.
  * @return 0 on success, negative on failure.
  */
-int ebp_register_op(uint16_t op_id, EBP_OP_handler_t fn);
+int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn);
 
 /**
  * @brief Finds and calls the handler in op_entries by op_id.
@@ -286,31 +309,23 @@ int ebp_register_op(uint16_t op_id, EBP_OP_handler_t fn);
  * @param arg_len  Length of the argument data in bytes.
  * @return The handler's return value, or a negative error if not found.
  */
-int ebp_invoke_op(uint32_t op_id, const void *args, size_t arg_len);
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len);
 
 /**
  * EBP_OPs_init - Registers the default EBA operations in the op_entries array.
  *
  * Return: 0 on success, negative error code on partial success/failure.
  */
-int ebp_ops_init(void)
-
-
-
-
-
+int ebp_ops_init(void);
 
 
 /*
     TODO:
     For this node ebp implementation : 
-        Add the prototypes of operations on this node ( remote allocation, write, read , etc)
-        Add a manlike file for the description of the node
-        Complete the implementation of the write operation ( First simply call the operation, and send an invoke ack, test it ,
-        second use the invocation queue, use the queue to depop tasks to execute ! )
-        Complete the allocation + read
-        Improve them using the queue.
-        Then expose the remote_API to users via the library to send each packet.
+        Add the read (similar to alloc and write)
+        Implement the invoke queue 
+        Implement the full node discovery ( modify the node_info struct to have the args structure so when we respond we build the corresponding packet perfectly )
+        Expose all to user API
 
 
 
@@ -319,7 +334,7 @@ int ebp_ops_init(void)
 
 
 */
-
+void print_op_entries(void);
 
 
 
