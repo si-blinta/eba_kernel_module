@@ -64,8 +64,8 @@ struct eba_remote_read{
 #define EBA_IOCTL_WRITE _IOW(EBA_IOC_MAGIC, 2, struct eba_rw_data)
 #define EBA_IOCTL_READ  _IOR(EBA_IOC_MAGIC, 3, struct eba_rw_data)
 #define EBA_IOCTL_REMOTE_ALLOC _IOWR(EBA_IOC_MAGIC, 4, struct eba_remote_alloc)
-#define EBA_IOCTL_REMOTE_WRITE _IOWR(EBA_IOC_MAGIC, 4, struct eba_remote_write)
+#define EBA_IOCTL_REMOTE_WRITE _IOWR(EBA_IOC_MAGIC, 5, struct eba_remote_write)
 
-#define EBA_IOC_MAXNR 3
+#define EBA_IOC_MAXNR 5
 
 #endif /* _EBA_H */
