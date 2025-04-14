@@ -51,7 +51,8 @@ struct invoke_tracker {
  * @brief The function pointer type used by each op_entry.
  * 
  * All operation handlers take a pointer to the raw arguments buffer 
- * plus its length. Inside the handler, you cast and parse `args` as needed.
+ * plus its length and destination mac address.
+ * Inside the handler, you cast and parse `args` as needed.
  */
 typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len, const char mac[6]);
 
@@ -142,7 +143,6 @@ struct ebp_op_write_args {
  * @param life_time:  The lifetime (in a defined unit) of the allocation.
  * @param buffer_id:  A field that the target node will fill in with the allocated buffer's
  *              unique identifier.
- * @param mac Dest mac address.
  */
 struct ebp_op_alloc_args {
     uint64_t size;      
@@ -222,7 +222,7 @@ struct ebp_invoke_req {
 } __attribute__((packed));
 
 /**
- * struct ebp_invoke_ack - Structure for the EBA Invoke Acknowledgment message.
+ * @param ebp_invoke_ack - Structure for the EBA Invoke Acknowledgment message.
  * @param status: A status code indicating whether the invocation has been queued,
  *          completed, or encountered an error.
  *
@@ -242,10 +242,9 @@ struct ebp_invoke_ack {
  * @param orig_dev: The original network device (if the packet was received via bridging or similar).
  *
  * This function is called by the networking stack for each received Ethernet packet
- * that matches the registered protocol. You can inspect the packet contents (e.g., the payload,
- * Ethernet header) and process it as required.
+ * that matches the registered protocol.
  *
- * @returns: NET_RX_SUCCESS if the packet was processed successfully,or an appropriate drop code (e.g., NET_RX_DROP) on error.
+ * @returns: NET_RX_SUCCESS if the packet was processed successfully,or an appropriate drop code on error.
  */
 int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
 
@@ -325,6 +324,7 @@ int ebp_op_alloc_handler(const void *args, uint64_t arg_len, const char mac[6]);
  * @brief This function will handle the write operation when invoked remotely.
  * @param args Arguments from the invoke packet.
  * @param arg_len Length of the arguments.
+ * @param mac dest mac address.
  * @returns 0 on succes 1 on fail.
  */
 int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6]);
@@ -333,6 +333,7 @@ int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6]);
  * @brief This function will handle the read operation when invoked remotely.
  * @param args    Pointer to the invoke packet's argument.
  * @param arg_len Length of the arguments.
+ * @param mac dest mac address.
  * @returns 0 on success or 1 on fail.
  */
 int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6]);
@@ -350,6 +351,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn);
  * @param op_id    The ID to look for.
  * @param args     Pointer to raw argument data.
  * @param arg_len  Length of the argument data in bytes.
+ * @param mac dest mac address.
  * @return The handler's return value, or a negative error if not found.
  */
 int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6]);
@@ -365,20 +367,50 @@ int ebp_ops_init(void);
 /*
     TODO:
     For this node ebp implementation : 
-        Add the read (similar to alloc and write)
         Implement the invoke queue 
-        Implement the full node discovery ( modify the node_info struct to have the args structure so when we respond we build the corresponding packet perfectly )
-        Expose all to user API
-
-
-
-
-
-
-
+        Implement the full node discovery 
+        ( modify the node_info struct to have the args structure so when we respond
+        we build the corresponding packet perfectly )
+        Add buffer types. ( disk ) 
 */
+/**
+ * @brief Utility function that prints available operation entries.
+ * 
+ */
 void print_op_entries(void);
+
+/**
+ * @brief This function requests a buffer allocation from distant node. 
+ * @param size Size of the buffer.
+ * @param life_time Life time of the buffer.
+ * @param local_buff_id The local buffer that will store the requested buffer id.
+ * @param mac Remote node address. ( todo modify it to node id )
+ * @returns 0 on success and negative on fail.
+ */
 int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
+
+/**
+ * @brief This function writes to a remote pre allocated buffer. 
+ * @param buff_id Remote buffer id.
+ * @param offset Offset.
+ * @param size size of the payload.
+ * @param mac Remote node address. ( todo modify it to node id )
+ * @returns 0 on success and negative on fail.
+ */
 int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
+
+
+
+/**
+ * @brief This function reads from a remote pre allocated buffer into a local pre allocated buffer. 
+ * @param dst_buffer_id destination buffer id (local buffer).
+ * @param src_buffer_id source buffer id (remote buffer).
+ * @param dst_offset Offset on the destination buffer (local buffer ).
+ * @param src_offset Offset on the source buffer ( remote buffer ).
+ * @param size size of the data to read.
+ * @param mac Remote node address. ( todo modify it to node id )
+ * @returns 0 on success and negative on fail.
+ */
 int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
+
 #endif

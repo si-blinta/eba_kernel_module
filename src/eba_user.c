@@ -28,17 +28,11 @@
      return fd;
  }
  
- /*
-  * eba_alloc - Allocates a buffer from the EBA kernel module.
-  *
-  * This function wraps the IOCTL_ALLOC command.
-  */
  uint64_t eba_alloc(uint64_t size, uint64_t life_time, uint8_t type)
  {
      int fd, ret;
      struct eba_alloc_data alloc;
  
-     /* For now, we ignore the 'type' parameter if not used by the kernel module */
      alloc.size = size;
      alloc.life_time = life_time;
      alloc.buff_id = 0;
@@ -58,11 +52,6 @@
      return alloc.buff_id;
  }
  
- /*
-  * eba_write - Writes data to a locally allocated buffer.
-  *
-  * This function wraps the IOCTL_WRITE command.
-  */
  int eba_write(const void *data, uint64_t buf_id, uint64_t off, uint64_t size)
  {
      int fd, ret;
@@ -86,12 +75,7 @@
      }
      return 0;
  }
- 
- /*
-  * eba_read - Reads data from a locally allocated buffer.
-  *
-  * This function wraps the IOCTL_READ command.
-  */
+
  int eba_read(void *data_out, uint64_t buf_id, uint64_t off, uint64_t size)
  {
      int fd, ret;

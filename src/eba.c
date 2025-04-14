@@ -45,56 +45,42 @@
           /* Copy the allocation parameters from user space */
           if (copy_from_user(&alloc_data, (void __user *)arg, sizeof(alloc_data)))
                return -EFAULT;
- 
-          /* Call internal allocation; buff_id will hold the virtual address */
+
           alloc_data.buff_id = (uint64_t)eba_internals_malloc(alloc_data.size,
                                                                alloc_data.life_time);
           if (!alloc_data.buff_id)
                ret = -ENOMEM;
  
-          /* Return the allocation info (including buff_id) to user space */
+          /* Return the allocation info to user space */
           if (copy_to_user((void __user *)arg, &alloc_data, sizeof(alloc_data)))
                ret = -EFAULT;
           break;
  
      case EBA_IOCTL_WRITE:
-          /* Copy the read/write structure from user space */
           if (copy_from_user(&rw_data, (void __user *)arg, sizeof(rw_data)))
                return -EFAULT;
- 
-          /* Allocate a temporary kernel buffer for the write data */
           kbuf = kmalloc(rw_data.size, GFP_KERNEL);
           if (!kbuf)
                return -ENOMEM;
-          /* Copy the data from the user-supplied pointer into the kernel buffer */
           if (copy_from_user(kbuf, (void __user *)(rw_data.user_addr), rw_data.size)) {
                kfree(kbuf);
                return -EFAULT;
           }
- 
-          /* Call the internal write function */
           ret = eba_internals_write(kbuf, rw_data.buff_id, rw_data.off, rw_data.size);
           kfree(kbuf);
           break;
  
      case EBA_IOCTL_READ:
-          /* Copy the read/write structure from user space */
           if (copy_from_user(&rw_data, (void __user *)arg, sizeof(rw_data)))
                return -EFAULT;
- 
-          /* Allocate a temporary kernel buffer to hold the read data */
           kbuf = kmalloc(rw_data.size, GFP_KERNEL);
           if (!kbuf)
                return -ENOMEM;
- 
-          /* Call the internal read function to copy data into the kernel buffer */
           ret = eba_internals_read(kbuf, rw_data.buff_id, rw_data.off, rw_data.size);
           if (ret) {
                kfree(kbuf);
                return ret;
           }
- 
-          /* Copy the data from the kernel buffer to the user-supplied pointer */
           if (copy_to_user((void __user *)(rw_data.user_addr), kbuf, rw_data.size))
                ret = -EFAULT;
           kfree(kbuf);
