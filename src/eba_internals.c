@@ -114,8 +114,8 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
     list_add(&buf->node, &eba_buffer_list);
     spin_unlock(&eba_buffer_list_lock);
 
-    pr_info("EBA: Allocated memory at %p, size: %llu bytes, lifetime: %llu sec\n",
-            ptr, size, life_time);
+    pr_info("EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n",
+            (uint64_t)ptr, size, life_time);
     
     return ptr;
 }
@@ -153,7 +153,7 @@ int eba_internals_free(void *ptr)
 
     /* If no tracking structure is found, log an error and return -1 */
     if (!found) {
-         pr_err("EBA: Attempt to free unknown memory at %p\n", ptr);
+         pr_err("EBA: Attempt to free unknown memory at %llu\n", (uint64_t)ptr);
          return -1;
     }
 
@@ -163,7 +163,7 @@ int eba_internals_free(void *ptr)
     /* Free the tracking structure */
     kfree(buf);
 
-    pr_info("EBA: Freed memory at %p, size: %llu bytes\n", ptr, buf->size);
+    pr_info("EBA: Freed memory at %llu, size: %llu bytes\n", (uint64_t)ptr, buf->size);
     return 0;
 }
 
@@ -187,8 +187,8 @@ void eba_internals_mempool_free(void)
     if (outstanding > 0) {
          pr_warn("EBA: Forcing cleanup of outstanding allocations\n");
          list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
-              pr_info("EBA: Forcing free of buffer at %p, size: %llu bytes\n",
-                      (void *)buf->address, buf->size);
+              pr_info("EBA: Forcing free of buffer at %llu, size: %llu bytes\n",
+                      buf->address, buf->size);
               list_del(&buf->node);
               gen_pool_free(eba_pool, buf->address, buf->size);
               kfree(buf);
@@ -309,7 +309,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
     /* Copy the data into the allocated buffer at the specified offset */
     memcpy((void *)(buf->address + off), data, size);
     spin_unlock(&buf->lock);
-    pr_info("EBA: Written %llu bytes at offset %llu on buf %p\n",size,off,(void*)buff_id);
+    pr_info("EBA: Written %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
     return 0;
 }
 
@@ -322,7 +322,10 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
     int found = 0;
 
     if (!data_out)
-         return -EINVAL;
+    {
+     pr_err("eba_internals_read: data pointer is NULL\n");
+     return -EINVAL;
+    }
 
     /* Locate the tracking structure using buff_id (the allocated virtual address) */
     spin_lock(&eba_buffer_list_lock);
@@ -335,12 +338,16 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
     spin_unlock(&eba_buffer_list_lock);
 
     if (!found)
-         return -EINVAL;  /* Buffer not found */
+    {
+          pr_err("eba_internals_read: Buffer with id 0x%llx not found\n", buff_id);
+          return -EINVAL;  /* Buffer not found */
+    }
 
     spin_lock(&buf->lock);
          /* Check if the read operation is within bounds */
     if (off + size > buf->size)
     {
+          pr_err("eba_internals_read: Read out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size); 
           spin_unlock(&buf->lock);
           return -EINVAL;
     }
@@ -348,7 +355,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
     /* Copy data from the allocated buffer at the specified offset into data_out */
     memcpy(data_out, (void *)(buf->address + off), size);
     spin_unlock(&buf->lock);
-    pr_info("EBA: Read %llu bytes at offset %llu on buf %p\n",size,off,(void*)buff_id);
+    pr_info("EBA: Read %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
     return 0;
 }
 
@@ -481,7 +488,7 @@ void eba_check_expired_buffers(void)
     list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
          // If expires is 0, the lifetime is infinite, so skip.
          if (buf->expires != 0 && now >= buf->expires) {
-               pr_info("EBA: Buffer at %p expired (current time %lld >= expires %lld)\n",(void *)buf->address, now,buf->expires);    
+               pr_info("EBA: Buffer at %llu expired (current time %lld >= expires %lld)\n",buf->address, now,buf->expires);    
                // Remove the entry from the tracking list
               list_del(&buf->node);
               // Free the allocated memory from the gen_pool

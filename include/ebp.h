@@ -150,6 +150,24 @@ struct ebp_op_alloc_args {
 
 
 /**
+ * @brief Arguments for the internal EBA "read" operation.
+ *
+ * These parameters are provided by a remote node to request a read operation.
+ *
+ * @param dest_buffer_id: The identifier (virtual address) of the destination buffer where the data will be copied. ( distant node )
+ * @param src_buffer_id:  The identifier (virtual address) of the source buffer to read from.
+ * @param offset:         The offset (in bytes) within the source buffer from where the read should start.
+ * @param size:           The number of bytes to read.
+ */
+struct ebp_op_read_args {
+    uint64_t dest_buffer_id;
+    uint64_t src_buffer_id;
+    uint64_t offset;
+    uint64_t size;
+} __attribute__((packed));
+
+
+/**
  * struct ebp_header - Minimal EBA protocol header.
  * @param msgType: Indicates the type of EBA message.
  *
@@ -246,15 +264,27 @@ char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len);
 
 /**
  * @brief Build an Invoke Request packet.
- * @param iid: 32-bit Invocation ID.
- * @param opid: 32-bit Operation ID.
- * @param args: pointer to the argument data.
- * @param args_len: length in bytes of the argument data.
- * @param out_len: returns the packet length. ( must be passed as a pointer init with value 0)
- * @returns Packet that needs to be freed !.
+ *
+ * This function builds an invoke request packet with the following layout:
+ *
+ *   [ebp_invoke_req header] | [args data] | [payload data]
+ *
+ * The fixed header (of type 'struct ebp_invoke_req') is followed immediately by
+ * the 'args' section, and then by the 'payload' section.
+ *
+ * @param iid:      32-bit Invocation ID.
+ * @param opid:     32-bit Operation ID.
+ * @param args:     Pointer to the invoke argument data.
+ * @param args_len: Length (in bytes) of the invoke argument data.
+ * @param payload:  Pointer to the additional payload data.
+ * @param payload_len: Length (in bytes) of the payload data.
+ * @param out_len:  Returns the total packet length. (Must be passed as a pointer initialized to 0)
+ *
+ * @returns A pointer to the allocated packet. The caller is responsible for freeing it.
  */
 char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
     const char *args, uint64_t args_len,
+    const char *payload, uint64_t payload_len,
     uint64_t *out_len);
 
 /**
@@ -282,7 +312,7 @@ void ebp_exit(void);
  * @brief This function will handle the alloc operation when invoked remotely.
  * @param args Pointer to the invoke packet’s argument blob.
  * @param arg_len Length of the arguments.
- * @returns 0 on success or a negative error code on failure.
+ * @returns 0 on success or 1 on fail.
  */
 int ebp_op_alloc_handler(const void *args, uint64_t arg_len);
 
@@ -293,6 +323,14 @@ int ebp_op_alloc_handler(const void *args, uint64_t arg_len);
  * @returns 0 on succes 1 on fail.
  */
 int ebp_op_write_handler(const void *args, uint64_t arg_len);
+
+/**
+ * @brief This function will handle the read operation when invoked remotely.
+ * @param args    Pointer to the invoke packet's argument.
+ * @param arg_len Length of the arguments.
+ * @returns 0 on success or 1 on fail.
+ */
+int ebp_op_read_handler(const void *args, uint64_t arg_len);
 
 /**
  * @brief Registers an operation into the global op_entries array.
