@@ -51,13 +51,15 @@ struct eba_remote_write{
     const char mac[6];  //TODO node id 
 };
 
-struct eba_remote_read{
-    __u64 buff_id;      
-    __u64 offset; 
+struct eba_remote_read {
+    __u64 dst_buffer_id;
+    __u64 src_buffer_id;
+    __u64 dst_offset;
+    __u64 src_offset;
     __u64 size;
-    char* payload;
-    const char mac[6];  //TODO node id 
+    const char mac[6];  //TODO node i
 };
+
 
 /* IOCTL command definitions */
 #define EBA_IOCTL_ALLOC _IOWR(EBA_IOC_MAGIC, 1, struct eba_alloc_data)
@@ -65,7 +67,8 @@ struct eba_remote_read{
 #define EBA_IOCTL_READ  _IOR(EBA_IOC_MAGIC, 3, struct eba_rw_data)
 #define EBA_IOCTL_REMOTE_ALLOC _IOWR(EBA_IOC_MAGIC, 4, struct eba_remote_alloc)
 #define EBA_IOCTL_REMOTE_WRITE _IOWR(EBA_IOC_MAGIC, 5, struct eba_remote_write)
+#define EBA_IOCTL_REMOTE_READ _IOWR(EBA_IOC_MAGIC, 6, struct eba_remote_read)
 
-#define EBA_IOC_MAXNR 5
+#define EBA_IOC_MAXNR 6
 
 #endif /* _EBA_H */

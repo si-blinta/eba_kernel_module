@@ -37,6 +37,7 @@
      struct eba_rw_data rw_data;
      struct eba_remote_alloc remote_alloc;
      struct eba_remote_write remote_write;
+     struct eba_remote_read remote_read;
      void *kbuf; /* Temporary kernel buffer for data transfers */
  
      switch (cmd) {
@@ -110,7 +111,12 @@
                return -EFAULT;
           ret =  ebp_remote_write(remote_write.buff_id,remote_write.offset,remote_write.size,remote_write.payload,remote_write.mac);
           break;
-     
+     case EBA_IOCTL_REMOTE_READ:
+          if (copy_from_user(&remote_read, (void __user *)arg, sizeof(remote_read)))
+               return -EFAULT;
+          ret =  ebp_remote_read(remote_read.dst_buffer_id,remote_read.src_buffer_id,remote_read.dst_offset,remote_read.src_offset,remote_read.size,remote_read.mac);
+          break;
+          
           default:
           ret = -ENOTTY;
           break;

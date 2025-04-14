@@ -78,7 +78,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             uint64_t args_len = be64_to_cpu(inv->args_len);
 
             EBA_DBG("Invoke Request: IID = %u, OpID = %u, args_len = %llu\n",iid, opid, args_len);
-            int ret = ebp_invoke_op(opid, inv->args, args_len);
+            int ret = ebp_invoke_op(opid, inv->args, args_len, eth->h_source);
             if (ret < 0) {
                 EBA_ERR("ebp_invoke_op(opid=%u) failed ret=%d\n", opid, ret);
                 /* Possibly build & send an error ack or something... TODO */
@@ -203,13 +203,13 @@ int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn)
 }
 
 
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len)
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6])
 {
     int i;
     for (i = 0; i < MAX_OP_COUNT; i++) {
         if (op_entries[i].op_id == op_id) {
             EBA_DBG("Found op_id %u in slot %d, calling handler...\n", op_id, i);
-            return op_entries[i].op_ptr(args, arg_len);
+            return op_entries[i].op_ptr(args, arg_len,mac);
         }
     }
     EBA_ERR("ebp_invoke_op: No matching op_id %u found\n", op_id);
@@ -291,7 +291,7 @@ char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len)
     *out_len = len;
     return (char *)ack;
 }
-int ebp_op_write_handler(const void *args, uint64_t arg_len)
+int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6])
 {
     /* Check that args is not NULL and that its is large enough for our fixed-size header */
     if (!args || arg_len < sizeof(struct ebp_op_write_args))
@@ -317,13 +317,11 @@ int ebp_op_write_handler(const void *args, uint64_t arg_len)
     //print_hex_dump(KERN_INFO, "ebp_op_write_handler payload :", DUMP_PREFIX_OFFSET, 16, 1,payload, wr->size, true);
     uint64_t len = 0;
     char* packet =  build_invoke_ack_packet(INVOKE_QUEUED,&len);
-    // TODO send to the only node,
-    char mac[ETH_ALEN] = {0x00,0x00,0x00,0x00,0x00,0x02};
     send_raw_ethernet_packet(packet,len,mac,EBP_ETHERTYPE,"enp0s8");
     return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
 }
 
-int ebp_op_alloc_handler(const void *args, uint64_t arg_len)
+int ebp_op_alloc_handler(const void *args, uint64_t arg_len, const char mac[6])
 {
     if (!args || arg_len < sizeof(struct ebp_op_alloc_args)) {
         EBA_ERR("ebp_op_alloc_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",
@@ -341,29 +339,10 @@ int ebp_op_alloc_handler(const void *args, uint64_t arg_len)
         return -ENOMEM;
     }
     uint64_t buf_id = (uint64_t)new_buf;
-
-    uint64_t len = 0;
-    struct ebp_op_write_args wr_args = {
-        .buff_id = alloc_args->buffer_id,
-        .offset  = 0x00,
-        .size    = sizeof(buf_id)
-    };
-    char *packet = build_invoke_req_packet(0x1234, EBP_OP_WRITE,
-                           (char *)&wr_args, sizeof(wr_args),
-                           (char *)&buf_id, wr_args.size,
-                           &len);
-    if (!packet) {
-        EBA_ERR("ebp_op_alloc_handler: Failed to build invoke request packet\n");
-        return -ENOMEM;
-    }
-
-    /* Send the packet to the target node (here, using mac as an example) */
-    char mac[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x02};
-    send_raw_ethernet_packet(packet, len, mac, EBP_ETHERTYPE, "enp0s8");
-    kfree(packet);
+    ebp_remote_write(alloc_args->buffer_id,0,sizeof(buf_id),(char *)&buf_id,mac);
     return 0;
 }
-int ebp_op_read_handler(const void *args, uint64_t arg_len)
+int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6])
 {
     /* Verify that a valid argument is provided and that it's at least as large as our header. */
     if (!args || arg_len < sizeof(struct ebp_op_read_args)) {
@@ -377,7 +356,6 @@ int ebp_op_read_handler(const void *args, uint64_t arg_len)
     // TODO here inquue to the invoke queue, if it is queued send an ack
     void* read_data = kmalloc(rd_args->size,GFP_KERNEL);
     int ret = eba_internals_read(read_data, rd_args->src_buffer_id, rd_args->src_offset, rd_args->size);
-    char mac[ETH_ALEN] = {0x00,0x00,0x00,0x00,0x00,0x02};
     ebp_remote_write(rd_args->dst_buffer_id,rd_args->dst_offset,rd_args->size,(const char*)read_data,mac);
 
     kfree(read_data);
@@ -431,10 +409,10 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
     uint64_t pkt_len = 0;
     char *packet = build_invoke_req_packet(
         0x1234,              /* Example IID Modify it to become automatically generated */
-        EBP_OP_WRITE,        /* Operation ID = allocate */
+        EBP_OP_WRITE,        /* Operation ID = write */
         (char *)&write_args, /* 'args' pointer */
         sizeof(write_args),  /* 'args' length */
-        payload,                /* no payload */
+        payload,                
         write_args.size,         /* payload length */
         &pkt_len
     );
@@ -446,6 +424,37 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
     kfree(packet);
 
     EBA_INFO("ebp_remote_write: Sent EBP_OP_WRITE request on buffer %llu\n",buff_id);
+    return 0;
+
+}
+
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/)
+{
+    struct ebp_op_read_args read_args = {
+        .dst_buffer_id = dst_buffer_id,
+        .src_buffer_id = src_buffer_id,
+        .dst_offset    = dst_offset,
+        .src_offset    = src_offset,
+        .size          = size
+    };
+    uint64_t pkt_len = 0;
+    char *packet = build_invoke_req_packet(
+        0x1234,              /* Example IID Modify it to become automatically generated */
+        EBP_OP_READ,        /* Operation ID = read */
+        (char *)&read_args, /* 'args' pointer */
+        sizeof(read_args),  /* 'args' length */
+        NULL,                /* no payload */
+        0,         /* payload length */
+        &pkt_len
+    );
+    if (!packet) {
+        EBA_ERR("ebp_remote_read: build_invoke_req_packet failed\n");
+        return -ENOMEM;
+    }
+    send_raw_ethernet_packet(packet, pkt_len, mac, EBP_ETHERTYPE, "enp0s8");
+    kfree(packet);
+
+    EBA_INFO("ebp_remote_read: Sent EBP_OP_READ request from  %llu to %llu\n",src_buffer_id,dst_buffer_id);
     return 0;
 
 }

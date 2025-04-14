@@ -181,3 +181,32 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
     free(remote.payload);
     return 0;
 }
+
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_read remote;
+
+    /* Fill in the remote_alloc structure */
+    remote.dst_buffer_id = dst_buffer_id;
+    remote.src_buffer_id= src_buffer_id;
+    remote.dst_offset = dst_offset;
+    remote.src_offset = src_offset;
+    remote.size = size;
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_READ, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_REMOTE_READ)");
+        return 1;
+    }
+    return 0;
+}

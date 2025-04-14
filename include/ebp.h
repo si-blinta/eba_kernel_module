@@ -53,7 +53,7 @@ struct invoke_tracker {
  * All operation handlers take a pointer to the raw arguments buffer 
  * plus its length. Inside the handler, you cast and parse `args` as needed.
  */
-typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len);
+typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
  * @struct op_entry
@@ -64,6 +64,7 @@ typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len);
 struct op_entry {
     uint32_t          op_id;
     ebp_op_handler_t  op_ptr;
+    
 };
 
 /**
@@ -141,6 +142,7 @@ struct ebp_op_write_args {
  * @param life_time:  The lifetime (in a defined unit) of the allocation.
  * @param buffer_id:  A field that the target node will fill in with the allocated buffer's
  *              unique identifier.
+ * @param mac Dest mac address.
  */
 struct ebp_op_alloc_args {
     uint64_t size;      
@@ -314,9 +316,10 @@ void ebp_exit(void);
  * @brief This function will handle the alloc operation when invoked remotely.
  * @param args Pointer to the invoke packet’s argument blob.
  * @param arg_len Length of the arguments.
+ * @param mac dest mac address.
  * @returns 0 on success or 1 on fail.
  */
-int ebp_op_alloc_handler(const void *args, uint64_t arg_len);
+int ebp_op_alloc_handler(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
  * @brief This function will handle the write operation when invoked remotely.
@@ -324,7 +327,7 @@ int ebp_op_alloc_handler(const void *args, uint64_t arg_len);
  * @param arg_len Length of the arguments.
  * @returns 0 on succes 1 on fail.
  */
-int ebp_op_write_handler(const void *args, uint64_t arg_len);
+int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
  * @brief This function will handle the read operation when invoked remotely.
@@ -332,7 +335,7 @@ int ebp_op_write_handler(const void *args, uint64_t arg_len);
  * @param arg_len Length of the arguments.
  * @returns 0 on success or 1 on fail.
  */
-int ebp_op_read_handler(const void *args, uint64_t arg_len);
+int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
  * @brief Registers an operation into the global op_entries array.
@@ -349,7 +352,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn);
  * @param arg_len  Length of the argument data in bytes.
  * @return The handler's return value, or a negative error if not found.
  */
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len);
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
  * EBP_OPs_init - Registers the default EBA operations in the op_entries array.
@@ -377,4 +380,5 @@ int ebp_ops_init(void);
 void print_op_entries(void);
 int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
 int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
 #endif
