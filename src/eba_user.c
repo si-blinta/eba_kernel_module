@@ -116,3 +116,68 @@
      return 0;
  }
  
+
+int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_alloc remote;
+
+    /* Fill in the remote_alloc structure */
+    memset(&remote, 0, sizeof(remote));
+    remote.size = size;
+    remote.life_time = life_time;
+    remote.buffer_id = local_buff_id;
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_ALLOC, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_REMOTE_ALLOC)");
+        return 1;
+    }
+    return 0;
+}
+
+int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_write remote;
+
+    /* Fill in the remote_alloc structure */
+    remote.buff_id = buff_id;
+    remote.offset = offset;
+    remote.size = size;
+    remote.payload = malloc(remote.size);
+    if(remote.payload == 0)
+    {
+        perror("malloc failed");
+        return 1;
+    }
+    memcpy((void *)remote.payload, payload, remote.size);
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        free(remote.payload);
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_WRITE, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        free(remote.payload);
+        perror("ioctl(EBA_IOCTL_REMOTE_WRITE)");
+        return 1;
+    }
+    free(remote.payload);
+    return 0;
+}

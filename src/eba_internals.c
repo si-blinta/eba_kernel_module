@@ -1,4 +1,5 @@
 #include "eba_internals.h"
+#include "eba.h"
 /* Global list of currently allocated buffers */
 static LIST_HEAD(eba_buffer_list);
 /* Global lock to protect the eba_buffer_list */
@@ -28,7 +29,7 @@ int eba_internals_mempool_init(void)
      */
     eba_pool = gen_pool_create(align, -1);
     if (!eba_pool) {
-         pr_err("EBA: Failed to create memory pool\n");
+         EBA_ERR("EBA: Failed to create memory pool\n");
          return 1;
     }
     
@@ -38,7 +39,7 @@ int eba_internals_mempool_init(void)
      */
     eba_pool_mem = vmalloc(MEMORY_POOL_SIZE);
     if (!eba_pool_mem) {
-         pr_err("EBA: Failed to allocate memory for the pool\n");
+         EBA_ERR("EBA: Failed to allocate memory for the pool\n");
          gen_pool_destroy(eba_pool);
          return 1;
     }
@@ -53,7 +54,7 @@ int eba_internals_mempool_init(void)
     /* Initialize the spinlock to protect the global tracking list */
     spin_lock_init(&eba_buffer_list_lock);
     
-    pr_info("EBA: Memory pool initialized successfully\n");
+    EBA_INFO("EBA: Memory pool initialized successfully\n");
     return 0;
 }
 /**
@@ -82,18 +83,20 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
     /* Allocate a block of memory from the gen_pool */
     addr = gen_pool_alloc(eba_pool, size);
     if (!addr) {
-         pr_err("EBA: Allocation failed for size %llu\n", size);
+         EBA_ERR("EBA: Allocation failed for size %llu\n", size);
          return NULL;
     }
     ptr = (void *)addr;
-
+     /* Zero out the allocated memory */
+     memset(ptr, 0, size);
     /* Allocate and initialize the tracking structure */
     buf = kmalloc(sizeof(*buf), GFP_KERNEL);
     if (!buf) {
-         pr_err("EBA: Tracking structure allocation failed\n");
+         EBA_ERR("EBA: Tracking structure allocation failed\n");
          gen_pool_free(eba_pool, addr, size);
          return NULL;
     }
+
     spin_lock_init(&buf->lock);
     buf->type = 0;    /* Set default type (customize if needed) */
     
@@ -114,7 +117,7 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
     list_add(&buf->node, &eba_buffer_list);
     spin_unlock(&eba_buffer_list_lock);
 
-    pr_info("EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n",
+    EBA_DBG("EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n",
             (uint64_t)ptr, size, life_time);
     
     return ptr;
@@ -153,7 +156,7 @@ int eba_internals_free(void *ptr)
 
     /* If no tracking structure is found, log an error and return -1 */
     if (!found) {
-         pr_err("EBA: Attempt to free unknown memory at %llu\n", (uint64_t)ptr);
+         EBA_ERR("EBA: Attempt to free unknown memory at %llu\n", (uint64_t)ptr);
          return -1;
     }
 
@@ -163,7 +166,7 @@ int eba_internals_free(void *ptr)
     /* Free the tracking structure */
     kfree(buf);
 
-    pr_info("EBA: Freed memory at %llu, size: %llu bytes\n", (uint64_t)ptr, buf->size);
+    EBA_DBG("EBA: Freed memory at %llu, size: %llu bytes\n", (uint64_t)ptr, buf->size);
     return 0;
 }
 
@@ -183,11 +186,10 @@ void eba_internals_mempool_free(void)
     list_for_each_entry(buf, &eba_buffer_list, node) {
          outstanding++;
     }
-    pr_info("EBA: %d outstanding buffers before cleanup\n", outstanding);
+    EBA_DBG("EBA: %d outstanding buffers before cleanup\n", outstanding);
     if (outstanding > 0) {
-         pr_warn("EBA: Forcing cleanup of outstanding allocations\n");
          list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
-              pr_info("EBA: Forcing free of buffer at %llu, size: %llu bytes\n",
+              EBA_DBG("EBA: Forcing free of buffer at %llu, size: %llu bytes\n",
                       buf->address, buf->size);
               list_del(&buf->node);
               gen_pool_free(eba_pool, buf->address, buf->size);
@@ -205,7 +207,7 @@ void eba_internals_mempool_free(void)
          eba_pool_mem = NULL;
     }
     spin_unlock(&eba_buffer_list_lock);
-    pr_info("EBA: Memory pool freed successfully\n");
+    EBA_INFO("EBA: Memory pool freed successfully\n");
 }
 
 /**
@@ -245,22 +247,22 @@ int eba_internals_mem_stress_test(void)
     for (i = 0; i < num_allocs; i++) {
          allocations[i] = eba_internals_malloc(sizes[i], 10);  /* Lifetime set to 10 sec */
          if (!allocations[i]) {
-              pr_err("EBA-STRESS: Allocation %d of size %d failed\n", i, sizes[i]);
+              EBA_ERR("EBA-STRESS: Allocation %d of size %d failed\n", i, sizes[i]);
               ret = -ENOMEM;
               goto cleanup;
          }
     }
-    pr_info("EBA-STRESS: Allocation phase completed successfully\n");
+    EBA_INFO("EBA-STRESS: Allocation phase completed successfully\n");
 
     /* De-allocation Phase: Free all allocated memory chunks */
     for (i = 0; i < num_allocs; i++) {
          ret = eba_internals_free(allocations[i]);
          if (ret != 0) {
-              pr_err("EBA-STRESS: Freeing allocation %d failed\n", i);
+              EBA_ERR("EBA-STRESS: Freeing allocation %d failed\n", i);
               goto cleanup;
          }
     }
-    pr_info("EBA-STRESS: De-allocation phase completed successfully\n");
+    EBA_INFO("EBA-STRESS: De-allocation phase completed successfully\n");
 
     ret = 0;  /* If all allocations and frees succeed, return success */
 
@@ -278,7 +280,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
 
     if (!data)
     {
-          pr_err("eba_internals_write: data pointer is NULL\n");
+          EBA_ERR("eba_internals_write: data pointer is NULL\n");
          return -EINVAL;
     }
 
@@ -294,14 +296,14 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
 
     if (!found)
     {
-          pr_err("eba_internals_write: Buffer with id 0x%llx not found\n", buff_id);
+          EBA_ERR("eba_internals_write: Buffer with id 0x%llx not found\n", buff_id);
          return -EINVAL;  /* Buffer not found */
     }
      spin_lock(&buf->lock);
     /* Check if the write operation is within bounds */
     if (off + size > buf->size)
     {
-          pr_err("eba_internals_write: Write out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size);     
+          EBA_ERR("eba_internals_write: Write out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size);     
           spin_unlock(&buf->lock);
          return -EINVAL;
     }
@@ -309,7 +311,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
     /* Copy the data into the allocated buffer at the specified offset */
     memcpy((void *)(buf->address + off), data, size);
     spin_unlock(&buf->lock);
-    pr_info("EBA: Written %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
+    EBA_INFO("EBA: Written %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
     return 0;
 }
 
@@ -323,7 +325,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
 
     if (!data_out)
     {
-     pr_err("eba_internals_read: data pointer is NULL\n");
+     EBA_ERR("eba_internals_read: data pointer is NULL\n");
      return -EINVAL;
     }
 
@@ -339,7 +341,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
 
     if (!found)
     {
-          pr_err("eba_internals_read: Buffer with id 0x%llx not found\n", buff_id);
+          EBA_ERR("eba_internals_read: Buffer with id 0x%llx not found\n", buff_id);
           return -EINVAL;  /* Buffer not found */
     }
 
@@ -347,7 +349,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
          /* Check if the read operation is within bounds */
     if (off + size > buf->size)
     {
-          pr_err("eba_internals_read: Read out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size); 
+          EBA_ERR("eba_internals_read: Read out of bounds: off(%llu) + size(%llu) > buf->size(%llu)\n", off, size, buf->size); 
           spin_unlock(&buf->lock);
           return -EINVAL;
     }
@@ -355,7 +357,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
     /* Copy data from the allocated buffer at the specified offset into data_out */
     memcpy(data_out, (void *)(buf->address + off), size);
     spin_unlock(&buf->lock);
-    pr_info("EBA: Read %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
+    EBA_INFO("EBA: Read %llu bytes at offset %llu on buf %llu\n",size,off,buff_id);
     return 0;
 }
 
@@ -403,7 +405,7 @@ int eba_internals_rw_stress_test(void)
          /* Allocate a buffer with a lifetime of 10 seconds */
          allocations[i] = eba_internals_malloc(sizes[i], 10);
          if (!allocations[i]) {
-              pr_err("EBA-RW-STRESS: Allocation %d of size %d failed\n", i, sizes[i]);
+              EBA_ERR("EBA-RW-STRESS: Allocation %d of size %d failed\n", i, sizes[i]);
               ret = -ENOMEM;
               goto cleanup;
          }
@@ -434,7 +436,7 @@ int eba_internals_rw_stress_test(void)
          /* Write the test pattern into the allocated buffer */
          ret = eba_internals_write(pattern, (uint64_t)allocations[i], 0, sizes[i]);
          if (ret != 0) {
-              pr_err("EBA-RW-STRESS: Write failed on buffer %d\n", i);
+              EBA_ERR("EBA-RW-STRESS: Write failed on buffer %d\n", i);
               kfree(pattern);
               kfree(read_back);
               goto cleanup;
@@ -443,7 +445,7 @@ int eba_internals_rw_stress_test(void)
          /* Read back the data into the read_back buffer */
          ret = eba_internals_read(read_back, (uint64_t)allocations[i], 0, sizes[i]);
          if (ret != 0) {
-              pr_err("EBA-RW-STRESS: Read failed on buffer %d\n", i);
+              EBA_ERR("EBA-RW-STRESS: Read failed on buffer %d\n", i);
               kfree(pattern);
               kfree(read_back);
               goto cleanup;
@@ -451,7 +453,7 @@ int eba_internals_rw_stress_test(void)
 
          /* Compare the written pattern with the read-back data */
          if (memcmp(pattern, read_back, sizes[i]) != 0) {
-              pr_err("EBA-RW-STRESS: Data mismatch on buffer %d\n", i);
+              EBA_ERR("EBA-RW-STRESS: Data mismatch on buffer %d\n", i);
               ret = -EINVAL;
               kfree(pattern);
               kfree(read_back);
@@ -462,10 +464,10 @@ int eba_internals_rw_stress_test(void)
          kfree(pattern);
          kfree(read_back);
 
-         pr_info("EBA-RW-STRESS: Buffer %d (size %d) verified successfully\n", i, sizes[i]);
+         EBA_INFO("EBA-RW-STRESS: Buffer %d (size %d) verified successfully\n", i, sizes[i]);
     }
 
-    pr_info("EBA-RW-STRESS: All read/write operations completed successfully\n");
+    EBA_INFO("EBA-RW-STRESS: All read/write operations completed successfully\n");
     ret = 0;
 
 cleanup:
@@ -488,7 +490,7 @@ void eba_check_expired_buffers(void)
     list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
          // If expires is 0, the lifetime is infinite, so skip.
          if (buf->expires != 0 && now >= buf->expires) {
-               pr_info("EBA: Buffer at %llu expired (current time %lld >= expires %lld)\n",buf->address, now,buf->expires);    
+               EBA_DBG("EBA: Buffer at %llu expired (current time %lld >= expires %lld)\n",buf->address, now,buf->expires);    
                // Remove the entry from the tracking list
               list_del(&buf->node);
               // Free the allocated memory from the gen_pool

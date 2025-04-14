@@ -156,13 +156,15 @@ struct ebp_op_alloc_args {
  *
  * @param dest_buffer_id: The identifier (virtual address) of the destination buffer where the data will be copied. ( distant node )
  * @param src_buffer_id:  The identifier (virtual address) of the source buffer to read from.
- * @param offset:         The offset (in bytes) within the source buffer from where the read should start.
+ * @param dst_offset:         The offset (in bytes) within the destination buffer.
+ * @param src_offset:         The offset (in bytes) within the source buffer from where the read should start.
  * @param size:           The number of bytes to read.
  */
 struct ebp_op_read_args {
-    uint64_t dest_buffer_id;
+    uint64_t dst_buffer_id;
     uint64_t src_buffer_id;
-    uint64_t offset;
+    uint64_t dst_offset;
+    uint64_t src_offset;
     uint64_t size;
 } __attribute__((packed));
 
@@ -373,11 +375,6 @@ int ebp_ops_init(void);
 
 */
 void print_op_entries(void);
-
-
-
-
-
-
-
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
 #endif

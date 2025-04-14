@@ -9,7 +9,7 @@
  * License: GPL
  * Version: 1.0
  */
-
+ //#define DEBUG
  #include <linux/module.h>       /* Core header for loading LKMs into the kernel */
  #include <linux/init.h>         /* Macros: __init, __exit */
  #include <linux/fs.h>           /* File operations, dev_t, etc. */
@@ -35,6 +35,8 @@
      int ret = 0;
      struct eba_alloc_data alloc_data;
      struct eba_rw_data rw_data;
+     struct eba_remote_alloc remote_alloc;
+     struct eba_remote_write remote_write;
      void *kbuf; /* Temporary kernel buffer for data transfers */
  
      switch (cmd) {
@@ -96,8 +98,20 @@
                ret = -EFAULT;
           kfree(kbuf);
           break;
- 
-     default:
+
+     case EBA_IOCTL_REMOTE_ALLOC:
+          if (copy_from_user(&remote_alloc, (void __user *)arg, sizeof(remote_alloc)))
+               return -EFAULT;
+          ret =  ebp_remote_alloc(remote_alloc.size,remote_alloc.life_time,remote_alloc.buffer_id,remote_alloc.mac);
+          break;
+
+     case EBA_IOCTL_REMOTE_WRITE:
+          if (copy_from_user(&remote_write, (void __user *)arg, sizeof(remote_write)))
+               return -EFAULT;
+          ret =  ebp_remote_write(remote_write.buff_id,remote_write.offset,remote_write.size,remote_write.payload,remote_write.mac);
+          break;
+     
+          default:
           ret = -ENOTTY;
           break;
      }
@@ -164,7 +178,7 @@ static void eba_timer_callback(struct timer_list *t)
      /* Initialize the memory pool */
      ret = eba_internals_mempool_init();
      if (ret) {
-          pr_err("EBA: Mempool Init failed\n");
+          EBA_ERR("Mempool Init failed\n");
           goto err_mempool;
      }
      // Initialize the timer:
@@ -173,7 +187,7 @@ static void eba_timer_callback(struct timer_list *t)
      mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
      
      ebp_init();
-     pr_info("EBA: Module loaded\n");
+     EBA_INFO("Module loaded\n");
      return 0;
  
  err_mempool:
@@ -197,7 +211,7 @@ static void eba_timer_callback(struct timer_list *t)
      cdev_del(&eba_cdev);
      unregister_chrdev_region(eba_devno, 1);
      ebp_exit();
-     pr_info("EBA: Module unloaded\n");
+     EBA_INFO("Module unloaded\n");
  }
  module_init(eba_module_init);
  module_exit(eba_module_exit);

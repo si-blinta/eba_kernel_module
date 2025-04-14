@@ -1,5 +1,5 @@
 #include "eba_net.h"
-
+#include "eba.h"
 int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,const unsigned char *dst_mac,int protocol,const char *ifname)
 {
     struct net_device *dev = NULL;
@@ -10,7 +10,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
     /* Look up the network device by name */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("send_raw_ethernet_packet: Could not find device %s\n", ifname);
+        EBA_ERR("send_raw_ethernet_packet: Could not find device %s\n", ifname);
         return -ENODEV;
     }
     /* Calculate total length: Ethernet header + payload */
@@ -21,7 +21,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
      */
     skb = alloc_skb(packet_len + dev->needed_tailroom, GFP_KERNEL);
     if (!skb) {
-        pr_err("send_raw_ethernet_packet: Failed to allocate sk_buff\n");
+        EBA_ERR("send_raw_ethernet_packet: Failed to allocate sk_buff\n");
         dev_put(dev);
         return -ENOMEM;
     }
@@ -51,10 +51,10 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
     /* Queue the packet for transmission */
     ret = dev_queue_xmit(skb);
     if (ret < 0) {
-        pr_err("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
+        EBA_ERR("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
         /* In case of error, the kernel should free the skb */
     } else {
-        pr_info("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
+        EBA_DBG("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
     }
     /* Release the reference to the network device */
     dev_put(dev);
@@ -72,13 +72,13 @@ int eba_net_get_max_mtu(const char *ifname, int *max_mtu)
     /* Look up the network device by name in the initial network namespace */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("EBA_NET: Could not find device %s\n", ifname);
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
         return -ENODEV;
     }
 
     /* Some drivers set max_mtu in the net_device structure */
     *max_mtu = dev->max_mtu;
-    pr_info("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
+    EBA_DBG("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
             dev->name, dev->mtu, dev->max_mtu);
 
     dev_put(dev);
@@ -96,7 +96,7 @@ int eba_net_set_mtu(const char *ifname, int new_mtu)
     /* Look up the network device by name */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("EBA_NET: Could not find device %s\n", ifname);
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
         return -ENODEV;
     }
 
@@ -104,14 +104,14 @@ int eba_net_set_mtu(const char *ifname, int new_mtu)
     if (dev->netdev_ops && dev->netdev_ops->ndo_change_mtu) {
         ret = dev->netdev_ops->ndo_change_mtu(dev, new_mtu);
         if (ret) {
-            pr_err("EBA_NET: Failed to change MTU on %s to %d, error: %d\n",
+            EBA_ERR("EBA_NET: Failed to change MTU on %s to %d, error: %d\n",
                    dev->name, new_mtu, ret);
         } else {
-            pr_info("EBA_NET: Successfully changed MTU on %s to %d\n",
+            EBA_INFO("EBA_NET: Successfully changed MTU on %s to %d\n",
                     dev->name, new_mtu);
         }
     } else {
-        pr_err("EBA_NET: Device %s does not support MTU change\n", dev->name);
+        EBA_ERR("EBA_NET: Device %s does not support MTU change\n", dev->name);
         ret = -EOPNOTSUPP;
     }
 

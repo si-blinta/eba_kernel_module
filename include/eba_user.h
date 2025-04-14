@@ -58,4 +58,9 @@ int eba_read(void* data_out, uint64_t buff_id, uint64_t off, uint64_t size);
  * @returns 0 on success and 1 if it fails.
  */
 //int eba_remote_read(uint64_t dst_buf_id,uint64_t dst_off, uint64_t src_buf_id, uint64_t src_off, uint64_t size);
+
+
+
+int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
+int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
 #endif
