@@ -6,7 +6,8 @@
 #include <linux/errno.h>
 #include <linux/types.h> 
 #define EBP_ETHERTYPE 0xEBA0
-
+#define EBP_NODE_SPECS_MAX_SIZE 512
+#define EBP_NODE_SPECS_MAX_LIFE_TIME 0
 #define MAX_NODE_COUNT    10
 #define MAX_INVOKE_COUNT  20
 #define MAX_OP_COUNT      5
@@ -363,16 +364,6 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char
  */
 int ebp_ops_init(void);
 
-
-/*
-    TODO:
-    For this node ebp implementation : 
-        Implement the invoke queue 
-        Implement the full node discovery 
-        ( modify the node_info struct to have the args structure so when we respond
-        we build the corresponding packet perfectly )
-        Add buffer types. ( disk ) 
-*/
 /**
  * @brief Utility function that prints available operation entries.
  * 
@@ -413,4 +404,84 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  */
 int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
 
+
+
+/**
+ * @brief Register a new node in the global node_infos array.
+ * @param mtu:        MTU (Maximum Transmission Unit) for this node.
+ * @param mac:        MAC address of the node.
+ * @param node_specs: Buffer id containing node specification details.
+ *
+ * This function checks if the node identified by @param mac is already registered.
+ * If not, it finds the first free slot in the node_infos array, populates it,
+ * increments the global nodes_count, and returns 0. Returns -EEXIST if the node
+ * (MAC) is already in the array, or -ENOSPC if there is no space to register
+ * a new node.
+ *
+ * Return: 0 on success, negative errno code on failure.
+ */
+int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs);
+
+
+
+
+/**
+ * send_discover_req_packet() - Build & send an EBP_MSG_DISCOVER packet
+ * @param mtu:         MTU to embed in the discover request
+ * @param dest_mac:    MAC address of the destination node
+ * @param ifname:      Name of the outgoing interface (e.g. "enp0s8")
+ *
+ * Returns: 0 on success, negative errno otherwise
+ */
+int send_discover_req_packet(uint16_t mtu, const unsigned char dest_mac[6], const char *ifname);
+
+
+
+/**
+ * send_discover_ack_packet() - Build & send an EBP_MSG_DISCOVER_ACK packet
+ * @param buffer_id:   64-bit buffer_id to embed in the ACK
+ * @param dest_mac:    MAC address of the destination node
+ * @param ifname:      Name of the outgoing interface
+ *
+ * Returns: 0 on success, negative errno otherwise
+ */
+int send_discover_ack_packet(uint64_t buffer_id, const unsigned char dest_mac[6], const char *ifname);
+
+/**
+ * send_invoke_req_packet() - Build & send a generic EBP_MSG_INVOKE request packet
+ * @param iid:         Invocation ID (caller-defined)
+ * @param opid:        Operation ID (e.g., EBP_OP_WRITE, EBP_OP_READ, etc.)
+ * @param args:        Pointer to the arguments buffer
+ * @param args_len:    Length of the arguments buffer
+ * @param payload:     Pointer to optional payload data appended after the args
+ * @param payload_len: Length of the optional payload
+ * @param dest_mac:    Destination MAC address
+ * @param ifname:      Outgoing interface name
+ *
+ * Returns: 0 on success, negative errno otherwise
+ *
+ * Note: This is a generic sender for an Invoke Request. Specialized helper
+ *       functions (like ebp_remote_alloc, ebp_remote_write, etc.) may also
+ *       call build_invoke_req_packet() directly as done in the code above.
+ */
+int send_invoke_req_packet(uint32_t iid, uint32_t opid,
+    const void *args, uint64_t args_len,
+    const void *payload, uint64_t payload_len,
+    const unsigned char dest_mac[6],
+    const char *ifname);
+
+
+
+
+
+/*
+    TODO:
+    For this node ebp implementation : 
+        Implement the invoke queue 
+        Implement the full node discovery 
+        ( modify the node_info struct to have the args structure so when we respond
+        we build the corresponding packet perfectly )
+        Add buffer types. ( disk )
+        Handle MTU for each operation, make sure it uses the min(local mtu,remote mtu). 
+*/
 #endif

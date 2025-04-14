@@ -40,7 +40,7 @@ int eba_internals_mempool_init(void);
  * and adds the tracking structure to a global list.
  *
  * @param size The number of bytes to allocate.
- * @param life_time The lifetime of the allocation in seconds, used for tracking purposes.
+ * @param life_time The lifetime of the allocation in seconds, used for tracking purposes. 0 = infinite
  *
  * @return A pointer to the allocated memory on success, or NULL if the allocation fails.
  */

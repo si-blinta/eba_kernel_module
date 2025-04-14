@@ -11,6 +11,7 @@ struct packet_type ebp_packet_type = {
     .dev = NULL,                  /* NULL = match on all devices */
     .func = ebp_handle_packets,   /* Packet receive callback function */
 };
+//handle errors perfectly
 int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev)
 {
@@ -51,7 +52,14 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
         else
         {
             struct ebp_discover_req *disc = (struct ebp_discover_req *)eba_hdr;
-            EBA_DBG("Discover Request: MTU = %u\n TODO", ntohs(disc->mtu));
+            EBA_DBG("Discover Request: MTU = %u\n", ntohs(disc->mtu));
+            //allocate node specs buffer
+            void* node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE,EBP_NODE_SPECS_MAX_LIFE_TIME);
+            //register the new node
+            //handle errors lol 
+            int ret = ebp_register_node(ntohs(disc->mtu),eth->h_source,(uint64_t)node_specs);
+            //send the discover ack with the allocated buffer to enable remote node to share its data.
+            ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
         }
         break;
     case EBP_MSG_DISCOVER_ACK: /* 0x03 */
@@ -62,7 +70,33 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
         else
         {
             struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
-            EBA_DBG("Discover Ack: buffer_id = 0x%llx TODO \n", be64_to_cpu(ack->buffer_id));
+            uint64_t buff_id = be64_to_cpu(ack->buffer_id);
+            EBA_DBG("Discover Ack: buffer_id = 0x%llu \n", buff_id);
+            //here read a file called node_specs.eba, and write its content to the distant buffer : todo
+            //todo handle mtu
+            char *file_data = NULL;
+            uint64_t file_size = 0;
+            /*
+             * 1) read local file "node_local.eba"
+            */
+            int rc = read_file_into_buffer("/var/lib/eba/node_local.eba", &file_data, &file_size);
+            if (rc < 0) {
+                EBA_ERR("Failed to read node_local.eba, ret=%d\n", rc);
+                // Possibly stop or continue with empty data
+                //handle errors
+            } else {
+                /*
+                 * 2) Send the file content to distant node's buffer
+                 *    at 'buff_id' via ebp_remote_write
+                 */
+                EBA_INFO("Read %llu bytes from node_local.eba, sending to remote\n", file_size);
+
+                rc = ebp_remote_write(buff_id, 0, file_size, file_data, eth->h_source);
+                if (rc < 0) {
+                    EBA_ERR("Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
+                }
+                kfree(file_data);
+            }
         }
         break;
     case EBP_MSG_INVOKE: /* 0x02 */
@@ -123,6 +157,7 @@ void ebp_exit(void)
 
 /* Global arrays for the EBA protocol data structures */
 struct node_info node_infos[MAX_NODE_COUNT];
+int nodes_count = 0;
 struct invoke_tracker invoke_trackers[MAX_INVOKE_COUNT];
 struct op_entry op_entries[MAX_OP_COUNT];
 void print_op_entries(void)
@@ -140,7 +175,7 @@ int node_info_array_init(void)
     uint64_t i;
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        node_infos[i].id = 0;
+        node_infos[i].id = -1;
         node_infos[i].mtu = 0;
         /* Zero out the 6-byte MAC address */
         memset(node_infos[i].mac, 0, sizeof(node_infos[i].mac));
@@ -457,4 +492,282 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     EBA_INFO("ebp_remote_read: Sent EBP_OP_READ request from  %llu to %llu\n",src_buffer_id,dst_buffer_id);
     return 0;
 
+}
+int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if ((node_infos[i].id != -1) &&
+            (memcmp(node_infos[i].mac, mac, sizeof(node_infos[i].mac)) == 0)) {
+            EBA_ERR("ebp_register_node: Node with MAC %pM is already registered.\n", mac);
+            return -EEXIST;
+        }
+    }
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id == -1) {
+            node_infos[i].id         = nodes_count; 
+            node_infos[i].mtu        = mtu;
+            memcpy(node_infos[i].mac, mac, 6);
+            node_infos[i].node_specs = node_specs;
+            nodes_count++;
+
+            EBA_INFO("ebp_register_node: Registered node with ID=%d, MAC=%pM, MTU=%u, node_specs=%llu\n",
+                     i, mac, mtu, node_specs);
+            return 0;
+        }
+    }
+
+    EBA_ERR("ebp_register_node: No space left to register a new node.\n");
+    return -ENOSPC;
+}
+
+int send_discover_req_packet(uint16_t mtu, const unsigned char dest_mac[6], const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_discover_req_packet(mtu, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_discover_req_packet: build_discover_req_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_discover_req_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_discover_req_packet: Sent EBP_MSG_DISCOVER to %pM via %s (MTU = %u)\n",
+             dest_mac, ifname, mtu);
+    return 0;
+}
+
+int send_discover_ack_packet(uint64_t buffer_id, const unsigned char dest_mac[6], const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_discover_ack_packet(buffer_id, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_discover_ack_packet: build_discover_ack_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_discover_ack_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_discover_ack_packet: Sent EBP_MSG_DISCOVER_ACK to %pM via %s (buffer_id=0x%llx)\n",
+             dest_mac, ifname, (unsigned long long)buffer_id);
+    return 0;
+}
+
+int send_invoke_req_packet(uint32_t iid, uint32_t opid,
+                           const void *args, uint64_t args_len,
+                           const void *payload, uint64_t payload_len,
+                           const unsigned char dest_mac[6],
+                           const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_invoke_req_packet(iid, opid,
+                                           args, args_len,
+                                           payload, payload_len,
+                                           &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_invoke_req_packet: build_invoke_req_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_invoke_req_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_invoke_req_packet: Sent EBP_MSG_INVOKE (IID=%u, OPID=%u) to %pM via %s\n",
+             iid, opid, dest_mac, ifname);
+    return 0;
+}
+
+/**
+ * send_invoke_ack_packet() - Build & send an EBP_MSG_INVOKE_ACK response packet
+ * @status:      Status code to embed in the ACK
+ * @dest_mac:    Destination MAC address
+ * @ifname:      Outgoing interface name
+ *
+ * Returns: 0 on success, negative errno otherwise
+ */
+int send_invoke_ack_packet(uint8_t status,
+                           const unsigned char dest_mac[6],
+                           const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_invoke_ack_packet(status, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_invoke_ack_packet: build_invoke_ack_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_invoke_ack_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_invoke_ack_packet: Sent EBP_MSG_INVOKE_ACK (status=0x%02x) to %pM via %s\n",
+             status, dest_mac, ifname);
+    return 0;
+}
+
+
+/*
+ * write_buffer_to_file() - Writes @count bytes from @data into a file at @path.
+ *                          Creates or overwrites the file.
+ *
+ * Return: 0 on success, negative errno on error.
+ */
+static int write_buffer_to_file(const char *path, const void *data, uint64_t count)
+{
+    struct file *filp;
+    loff_t pos = 0;
+    suint64_t written;
+
+    /* Open (or create) the file for write */
+    filp = filp_open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (IS_ERR(filp)) {
+        EBA_ERR("write_buffer_to_file: filp_open failed for '%s', err=%ld\n",
+                path, PTR_ERR(filp));
+        return PTR_ERR(filp);
+    }
+
+    /* Write data into the file */
+    written = kernel_write(filp, data, count, &pos);
+    if (written < 0 || written != count) {
+        EBA_ERR("write_buffer_to_file: kernel_write failed. ret=%zd\n", written);
+        filp_close(filp, NULL);
+        return (written < 0) ? (int)written : -EIO;
+    }
+
+    filp_close(filp, NULL);
+    return 0;
+}
+
+/*
+ * export_all_node_specs - For each valid node, create a file with the name:
+ *                         /var/lib/eba/node_<ID>.eba
+ *                         and write the contents of node_specs to it.
+ *
+ * Return: 0 on success if at least one file was written, negative on error
+ *         (If no valid nodes exist, returns 0 but writes no files.)
+ */
+int export_all_node_specs(void)
+{
+    int i, ret = 0;
+    char path[128];
+
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id != -1) {
+            /* We have a valid node. Its node_specs is a uint64_t that points to a buffer. */
+            void *spec_ptr = (void *)node_infos[i].node_specs;
+            if (!spec_ptr) {
+                EBA_ERR("export_all_node_specs: node %d has null node_specs pointer\n", i);
+                continue;
+            }
+
+            /* In this example, we assume EBP_NODE_SPECS_MAX_SIZE is how much we want to save. */
+            snprintf(path, sizeof(path), "/var/lib/eba/node_%d.eba", node_infos[i].id);
+
+            /* Write the entire node_specs buffer to the file. */
+            ret = write_buffer_to_file(path, spec_ptr, EBP_NODE_SPECS_MAX_SIZE);
+            if (ret < 0) {
+                EBA_ERR("export_all_node_specs: failed to write node %d to %s, ret=%d\n",
+                        node_infos[i].id, path, ret);
+                /* Decide if you want to break on first error or keep going. */
+                // break;
+            } else {
+                EBA_INFO("export_all_node_specs: saved node %d specs to %s\n",
+                         node_infos[i].id, path);
+            }
+        }
+    }
+    return ret;
+}
+
+
+/*
+ * read_file_into_pointer() - Reads an entire file at @path into a newly kmalloc'd pointer.
+ *                           The pointer is returned in *@out_buf and size in *@out_size.
+ *
+ * Return: 0 on success, negative errno on error.
+ *         Caller must kfree(*out_buf) after use.
+ */
+static int read_file_into_pointer(const char *path, char **out_buf, uint64_t *out_size)
+{
+    struct file *filp;
+    mm_segment_t old_fs;
+    loff_t size;
+    suint64_t read_ret;
+    char *buf;
+
+    *out_buf = NULL;
+    *out_size = 0;
+
+    filp = filp_open(path, O_RDONLY, 0);
+    if (IS_ERR(filp)) {
+        EBA_ERR("read_file_into_buffer: filp_open failed for '%s', err=%ld\n",
+                path, PTR_ERR(filp));
+        return PTR_ERR(filp);
+    }
+
+    /* Obtain file size (loff_t). For a real system, consider i_size_read or vfs_stat. */
+    size = i_size_read(file_inode(filp));
+    if (size <= 0) {
+        EBA_ERR("read_file_into_buffer: file '%s' has invalid size=%llu\n", path, size);
+        filp_close(filp, NULL);
+        return -EINVAL;
+    }
+
+    /* Allocate a buffer to hold the entire file */
+    buf = kmalloc(size, GFP_KERNEL);
+    if (!buf) {
+        filp_close(filp, NULL);
+        return -ENOMEM;
+    }
+
+    /* Read the file into our buffer */
+    read_ret = kernel_read(filp, buf, size, 0);
+    filp_close(filp, NULL);
+
+    if (read_ret < 0) {
+        EBA_ERR("read_file_into_buffer: kernel_read failed=%zd\n", read_ret);
+        kfree(buf);
+        return (int)read_ret;
+    }
+
+    if (read_ret != size) {
+        EBA_ERR("read_file_into_buffer: partial read. got=%zd, expected=%llu\n",
+                read_ret, size);
+        kfree(buf);
+        return -EIO;
+    }
+
+    /* On success, return the buffer + size to caller */
+    *out_buf  = buf;
+    *out_size = size;
+    return 0;
 }
