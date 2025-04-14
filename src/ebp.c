@@ -312,7 +312,7 @@ int ebp_op_write_handler(const void *args, uint64_t arg_len)
 
     const uint8_t *payload = (const uint8_t *)args + header_size;
 
-    EBA_DBG("ebp_op_write_handler: buff_id = %llx offset = %llu size = %llu\n",wr->buff_id, wr->offset, wr->size);
+    EBA_INFO("ebp_op_write_handler: buff_id = %llx offset = %llu size = %llu\n",wr->buff_id, wr->offset, wr->size);
      // TODO here inqueue to the invoke queue and send an ack
     //print_hex_dump(KERN_INFO, "ebp_op_write_handler payload :", DUMP_PREFIX_OFFSET, 16, 1,payload, wr->size, true);
     uint64_t len = 0;
@@ -332,7 +332,7 @@ int ebp_op_alloc_handler(const void *args, uint64_t arg_len)
     }
 
     const struct ebp_op_alloc_args *alloc_args = args;
-    EBA_DBG("ebp_op_alloc_handler: Allocation request received: size = %llu, life_time = %llu, receive bufferID = %llu\n",
+    EBA_INFO("ebp_op_alloc_handler: Allocation request received: size = %llu, life_time = %llu, receive bufferID = %llu\n",
             alloc_args->size, alloc_args->life_time, alloc_args->buffer_id);
 
     void *new_buf = eba_internals_malloc(alloc_args->size, alloc_args->life_time);
@@ -416,7 +416,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,c
     send_raw_ethernet_packet(packet, pkt_len, mac, EBP_ETHERTYPE, "enp0s8");
     kfree(packet);
 
-    EBA_DBG("ebp_remote_alloc: Sent EBP_OP_ALLOC request with local_buf_id = %llu\n",local_buff_id);
+    EBA_INFO("ebp_remote_alloc: Sent EBP_OP_ALLOC request with local_buf_id = %llu\n",local_buff_id);
     return 0;
 
 }
@@ -445,7 +445,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
     send_raw_ethernet_packet(packet, pkt_len, mac, EBP_ETHERTYPE, "enp0s8");
     kfree(packet);
 
-    EBA_DBG("ebp_remote_write: Sent EBP_OP_WRITE request on buffer %llu\n",buff_id);
+    EBA_INFO("ebp_remote_write: Sent EBP_OP_WRITE request on buffer %llu\n",buff_id);
     return 0;
 
 }
