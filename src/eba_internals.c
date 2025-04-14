@@ -1,14 +1,14 @@
 #include "eba_internals.h"
 #include "eba.h"
 /* Global list of currently allocated buffers */
-static LIST_HEAD(eba_buffer_list);
+LIST_HEAD(eba_buffer_list);
 /* Global lock to protect the eba_buffer_list */
-static spinlock_t eba_buffer_list_lock;
+spinlock_t eba_buffer_list_lock;
 
 /* The genpool instance used for memory allocation */
-static struct gen_pool *eba_pool = NULL;
+struct gen_pool *eba_pool = NULL;
 /* The raw memory backing the pool */
-static void *eba_pool_mem = NULL;
+void *eba_pool_mem = NULL;
 /**
  * @brief Initializes the memory pool for the EBA module.
  *

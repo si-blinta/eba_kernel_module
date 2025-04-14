@@ -23,7 +23,7 @@
  #include "eba.h"                /* Public definitions, IOCTL commands, structures */
  #include "eba_net.h"
  #include "ebp.h"
- 
+ #include "eba_utils.h"
  /* Global variables for character device registration */
  static dev_t eba_devno;
  static struct cdev eba_cdev;

@@ -381,5 +381,6 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs);
         we build the corresponding packet perfectly )
         Add buffer types. ( disk )
         Handle MTU for each operation, make sure it uses the min(local mtu,remote mtu). 
+        TODO finish the discovery
 */
 #endif
