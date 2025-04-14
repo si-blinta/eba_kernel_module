@@ -2,6 +2,7 @@
 *
 
 # But not these:
+!*/
 !*.c
 !*.h
 !Makefile
