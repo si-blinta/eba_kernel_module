@@ -124,7 +124,7 @@ static void eba_timer_callback_cleanup_buffer(struct timer_list *t)
 static void eba_timer_callback_discover(struct timer_list *t)
 {
     discover();
-    mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(1000)); // reschedule for next second
+    mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(10000)); // reschedule for next second
 }
 
  static int eba_open(struct inode *inode, struct file *file)
@@ -185,7 +185,7 @@ static void eba_timer_callback_discover(struct timer_list *t)
      timer_setup(&eba_timer_discover, eba_timer_callback_discover, 0);
      // Schedule the timer for the first time
      mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
-     mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(1000));
+     mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(10000));
      
      ebp_init();
      EBA_INFO("Module loaded\n");

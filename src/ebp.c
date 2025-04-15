@@ -68,9 +68,9 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             if(ret == -EEXIST)
             {
                 EBA_ERR("ebp_handle_packets: node already exists : todo resend the node_specs \n");
-                kfree_skb(skb);
-                eba_internals_free(node_specs);
-                return NET_RX_DROP;
+                //kfree_skb(skb);
+                //eba_internals_free(node_specs);
+                //return NET_RX_DROP;
             }
             else if ( ret == -ENOSPC)
             {
