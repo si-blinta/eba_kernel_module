@@ -20,7 +20,7 @@
 /** EBA EtherType used to identify EBA frames in Ethernet communication. */
 #define EBP_ETHERTYPE 0xEBA0
 /** Maximum size for the node specification buffer. */
-#define EBP_NODE_SPECS_MAX_SIZE 512
+#define EBP_NODE_SPECS_MAX_SIZE 4096
 /** Default maximum lifetime for node specifications buffer. */
 #define EBP_NODE_SPECS_MAX_LIFE_TIME 0
 /** Maximum number of nodes that can be registered. */
