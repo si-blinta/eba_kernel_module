@@ -1,7 +1,9 @@
 <map id="include/eba_utils.h" name="include/eba_utils.h">
-<area shape="rect" id="Node000001" title="EBA Utilities for File and Buffer Operations." alt="" coords="33,5,177,31"/>
+<area shape="rect" id="Node000001" title="EBA Utilities for File and Buffer Operations." alt="" coords="95,5,239,31"/>
 <area shape="rect" id="Node000002" href="$eba_8c.html" title=" " alt="" coords="5,79,85,104"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="89,43,57,80,53,77,85,40"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="136,40,67,81,64,76,134,35"/>
 <area shape="rect" id="Node000003" href="$eba__utils_8c.html" title=" " alt="" coords="109,79,224,104"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="126,40,159,77,155,80,122,43"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="169,44,169,79,164,79,164,44"/>
+<area shape="rect" id="Node000004" href="$ebp_8c.html" title=" " alt="" coords="248,79,328,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="200,35,269,76,267,81,197,40"/>
 </map>

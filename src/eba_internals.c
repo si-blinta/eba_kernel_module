@@ -117,7 +117,7 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
     list_add(&buf->node, &eba_buffer_list);
     spin_unlock(&eba_buffer_list_lock);
 
-    EBA_DBG("EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n",
+    EBA_INFO("EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n",
             (uint64_t)ptr, size, life_time);
     
     return ptr;
@@ -166,7 +166,7 @@ int eba_internals_free(void *ptr)
     /* Free the tracking structure */
     kfree(buf);
 
-    EBA_DBG("EBA: Freed memory at %llu, size: %llu bytes\n", (uint64_t)ptr, buf->size);
+    EBA_INFO("EBA: Freed memory at %llu, size: %llu bytes\n", (uint64_t)ptr, buf->size);
     return 0;
 }
 
@@ -186,10 +186,10 @@ void eba_internals_mempool_free(void)
     list_for_each_entry(buf, &eba_buffer_list, node) {
          outstanding++;
     }
-    EBA_DBG("EBA: %d outstanding buffers before cleanup\n", outstanding);
+    EBA_INFO("EBA: %d outstanding buffers before cleanup\n", outstanding);
     if (outstanding > 0) {
          list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
-              EBA_DBG("EBA: Forcing free of buffer at %llu, size: %llu bytes\n",
+              EBA_INFO("EBA: Forcing free of buffer at %llu, size: %llu bytes\n",
                       buf->address, buf->size);
               list_del(&buf->node);
               gen_pool_free(eba_pool, buf->address, buf->size);
@@ -490,7 +490,7 @@ void eba_check_expired_buffers(void)
     list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node) {
          // If expires is 0, the lifetime is infinite, so skip.
          if (buf->expires != 0 && now >= buf->expires) {
-               EBA_DBG("EBA: Buffer at %llu expired (current time %lld >= expires %lld)\n",buf->address, now,buf->expires);    
+               EBA_INFO("EBA: Buffer at %llu expired (current time %lld >= expires %lld)\n",buf->address, now,buf->expires);    
                // Remove the entry from the tracking list
               list_del(&buf->node);
               // Free the allocated memory from the gen_pool

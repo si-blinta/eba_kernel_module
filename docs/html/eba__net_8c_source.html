@@ -139,7 +139,7 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <a class="code hl_define" href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmission failed: %d\n&quot;</span>, ret);</div>
 <div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>        <span class="comment">/* In case of error, the kernel should free the skb */</span></div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmitted successfully on %s\n&quot;</span>, ifname);</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>        <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmitted successfully on %s\n&quot;</span>, ifname);</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    }</div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="comment">/* Release the reference to the network device */</span></div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    dev_put(dev);</div>
@@ -165,7 +165,7 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="comment">/* Some drivers set max_mtu in the net_device structure */</span></div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    *max_mtu = dev-&gt;max_mtu;</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n&quot;</span>,</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n&quot;</span>,</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>            dev-&gt;name, dev-&gt;mtu, dev-&gt;max_mtu);</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span> </div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    dev_put(dev);</div>
@@ -393,7 +393,6 @@ $(document).ready(function() { init_codefold(0); });
 <div class="ttc" id="aeba_8h_html"><div class="ttname"><a href="eba_8h.html">eba.h</a></div><div class="ttdoc">EBA IOCTL interface header.</div></div>
 <div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 <div class="ttc" id="aeba_8h_html_abc39ed4c3500e6d4ad7ebb88b32d0011"><div class="ttname"><a href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a></div><div class="ttdeci">#define EBA_ERR(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00075">eba.h:75</a></div></div>
-<div class="ttc" id="aeba_8h_html_afdda61f5670887de0d3ab5c02a36d5bc"><div class="ttname"><a href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a></div><div class="ttdeci">#define EBA_DBG(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00079">eba.h:79</a></div></div>
 <div class="ttc" id="aeba__net_8c_html_a101cf77211e6f812d318cdc324fa8bfa"><div class="ttname"><a href="eba__net_8c.html#a101cf77211e6f812d318cdc324fa8bfa">build_discover_req_packet</a></div><div class="ttdeci">char * build_discover_req_packet(uint16_t mtu, uint64_t *out_len)</div><div class="ttdef"><b>Definition</b> <a href="eba__net_8c_source.html#l00122">eba_net.c:122</a></div></div>
 <div class="ttc" id="aeba__net_8c_html_a3bba47803fa4b821c6e2bb1496098c52"><div class="ttname"><a href="eba__net_8c.html#a3bba47803fa4b821c6e2bb1496098c52">build_discover_ack_packet</a></div><div class="ttdeci">char * build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len)</div><div class="ttdef"><b>Definition</b> <a href="eba__net_8c_source.html#l00134">eba_net.c:134</a></div></div>
 <div class="ttc" id="aeba__net_8c_html_a3c85418b036e188f0a21cac2be1acb84"><div class="ttname"><a href="eba__net_8c.html#a3c85418b036e188f0a21cac2be1acb84">send_raw_ethernet_packet</a></div><div class="ttdeci">int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len, const unsigned char *dst_mac, int protocol, const char *ifname)</div><div class="ttdef"><b>Definition</b> <a href="eba__net_8c_source.html#l00003">eba_net.c:3</a></div></div>
@@ -436,7 +435,7 @@ $(document).ready(function() { init_codefold(0); });
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 15 2025 10:07:50 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Tue Apr 15 2025 12:44:58 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

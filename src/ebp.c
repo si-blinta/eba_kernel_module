@@ -38,14 +38,14 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
 
     /* Get the Ethernet header */
     eth = eth_hdr(skb);
-    EBA_DBG("ebp_handle_packets: Source MAC address: %pM\n", eth->h_source);
+    EBA_INFO("ebp_handle_packets: Source MAC address: %pM\n", eth->h_source);
 
     /* EBA header */
     payload = skb->data;
     payload_len = skb->len;
     eba_hdr = (struct ebp_header *)payload;
 
-    EBA_DBG("ebp_handle_packets: Received packet on %s, protocol: 0x%04x, length: %u, EBA msgType: 0x%02x\n",dev->name, ntohs(skb->protocol), skb->len, eba_hdr->msgType);
+    EBA_INFO("ebp_handle_packets: Received packet on %s, protocol: 0x%04x, length: %u, EBA msgType: 0x%02x\n",dev->name, ntohs(skb->protocol), skb->len, eba_hdr->msgType);
     
     switch (eba_hdr->msgType)
     {
@@ -59,16 +59,24 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
         else
         {
             struct ebp_discover_req *disc = (struct ebp_discover_req *)eba_hdr;
-            EBA_DBG("ebp_handle_packets: Discover Request: MTU = %u\n", ntohs(disc->mtu));
+            EBA_INFO("ebp_handle_packets: Discover Request: MTU = %u\n", ntohs(disc->mtu));
             //allocate node specs buffer
             void* node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE,EBP_NODE_SPECS_MAX_LIFE_TIME);
             //register the new node
             //handle errors lol 
             int ret = ebp_register_node(ntohs(disc->mtu),eth->h_source,(uint64_t)node_specs);
-            if(ret < 0)
+            if(ret == -EEXIST)
+            {
+                EBA_ERR("ebp_handle_packets: node already exists : todo resend the node_specs \n");
+                kfree_skb(skb);
+                eba_internals_free(node_specs);
+                return NET_RX_DROP;
+            }
+            else if ( ret == -ENOSPC)
             {
                 EBA_ERR("ebp_handle_packets: register node failed\n");
                 kfree_skb(skb);
+                eba_internals_free(node_specs);
                 return NET_RX_DROP;
             }
             //send the discover ack with the allocated buffer to enable remote node to share its data.
@@ -77,6 +85,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             {
                 EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
                 kfree_skb(skb);
+                eba_internals_free(node_specs);
                 return NET_RX_DROP;
             }*/
         }
@@ -92,7 +101,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
         {
             struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
             uint64_t buff_id = be64_to_cpu(ack->buffer_id);
-            EBA_DBG("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
+            EBA_INFO("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
             //todo handle mtu
             /*int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
             if (rc < 0) {
@@ -100,7 +109,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
                 kfree_skb(skb);
                 return NET_RX_DROP;
             } else {
-                EBA_DBG("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)4096);
+                EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)4096);
                 uint64_t offset = 0;
                 for(int i = 0 ; i < 4 ; i++)
                 {
@@ -126,7 +135,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             uint32_t opid = ntohl(inv->opid);
             uint64_t args_len = be64_to_cpu(inv->args_len);
 
-            EBA_DBG("ebp_handle_packets: Invoke Request: IID = %u, OpID = %u, args_len = %llu\n",iid, opid, args_len);
+            EBA_INFO("ebp_handle_packets: Invoke Request: IID = %u, OpID = %u, args_len = %llu\n",iid, opid, args_len);
             int ret = ebp_invoke_op(opid, inv->args, args_len, eth->h_source);
             if (ret < 0) {
                 EBA_ERR("ebp_handle_packets: ebp_invoke_op(opid=%u) failed ret=%d\n", opid, ret);
@@ -149,7 +158,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
         else
         {
             struct ebp_invoke_ack *inv_ack = (struct ebp_invoke_ack *)eba_hdr;
-            EBA_DBG("ebp_handle_packets: Invoke Ack: status = 0x%02x TODO \n ", inv_ack->status);
+            EBA_INFO("ebp_handle_packets: Invoke Ack: status = 0x%02x TODO \n ", inv_ack->status);
         }
         break;
     default:
@@ -189,10 +198,10 @@ struct op_entry op_entries[MAX_OP_COUNT];
 void print_node_infos(void)
 {
     int i;
-    EBA_DBG("=== node_infos Array Dump ===\n");
+    EBA_INFO("=== node_infos Array Dump ===\n");
     for (i = 0; i < MAX_NODE_COUNT; i++) {
         if (node_infos[i].id != INVALID_NODE_ID) {
-            EBA_DBG("Slot %d: NodeID=%d, MTU=%u, MAC=%pM, node_specs=%llu\n",
+            EBA_INFO("Slot %d: NodeID=%d, MTU=%u, MAC=%pM, node_specs=%llu\n",
                     i,
                     node_infos[i].id,
                     node_infos[i].mtu,
@@ -200,17 +209,17 @@ void print_node_infos(void)
                     node_infos[i].node_specs);
         }
     }
-    EBA_DBG("=============================\n");
+    EBA_INFO("=============================\n");
 }
 void print_op_entries(void)
 {
     int i;
-    EBA_DBG("=== op_entries Array Dump ===\n");
+    EBA_INFO("=== op_entries Array Dump ===\n");
     for (i = 0; i < MAX_OP_COUNT; i++) {
-        EBA_DBG("Slot %d: op_id = %u, op_ptr = %p\n", 
+        EBA_INFO("Slot %d: op_id = %u, op_ptr = %p\n", 
                  i, op_entries[i].op_id, op_entries[i].op_ptr);
     }
-    EBA_DBG("=============================\n");
+    EBA_INFO("=============================\n");
 }
 int node_info_array_init(void)
 {
@@ -271,7 +280,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn)
         if (op_entries[i].op_ptr == NULL && op_entries[i].op_id == 0) {
             op_entries[i].op_id  = op_id;
             op_entries[i].op_ptr = fn;
-            EBA_DBG("Registered op_id %u in slot %d\n", op_id, i);
+            EBA_INFO("Registered op_id %u in slot %d\n", op_id, i);
             return 0;
         }
     }
@@ -285,7 +294,7 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char
     int i;
     for (i = 0; i < MAX_OP_COUNT; i++) {
         if (op_entries[i].op_id == op_id) {
-            EBA_DBG("Found op_id %u in slot %d, calling handler...\n", op_id, i);
+            EBA_INFO("Found op_id %u in slot %d, calling handler...\n", op_id, i);
             return op_entries[i].op_ptr(args, arg_len,mac);
         }
     }
@@ -429,26 +438,43 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     int free_slot = -1;
     int i;
     
-    /* Find the first free slot (indicated by id == -1) */
+    /* First, check if a node with this MAC already exists. */
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id != INVALID_NODE_ID &&
+            memcmp(node_infos[i].mac, mac, 6) == 0)
+        {
+            /* Node already registered, return success (no error). */
+            EBA_INFO("ebp_register_node: Node with MAC %pM already exists, skipping registration.\n",mac);
+            return -EEXIST;
+        }
+    }
+
+    /* If no existing node found, find the first free slot. */
     for (i = 0; i < MAX_NODE_COUNT; i++) {
         if (node_infos[i].id == INVALID_NODE_ID) {
             free_slot = i;
             break;
         }
     }
+
     if (free_slot == -1) {
         EBA_ERR("ebp_register_node: No space left to register a new node.\n");
         return -ENOSPC;
     }
+
     /* Register the node in the found free slot */
-    node_infos[free_slot].id = nodes_count;
-    node_infos[free_slot].mtu = mtu;
+    node_infos[free_slot].id         = nodes_count;
+    node_infos[free_slot].mtu        = mtu;
     memcpy(node_infos[free_slot].mac, mac, 6);
     node_infos[free_slot].node_specs = node_specs;
-    EBA_DBG("ebp_register_node: Registered node with NodeID=%d (slot %d), MAC=%pM, MTU=%u, node_specs=%llu\n",
-            node_infos[free_slot].id, free_slot, mac, mtu, node_specs);
+
+    EBA_INFO("ebp_register_node: Registered node with NodeID=%d (slot %d), MAC=%pM, MTU=%u, node_specs=%llu\n",
+              node_infos[free_slot].id, free_slot, mac, mtu, node_specs);
+
     nodes_count++;
+    print_node_infos();
     return 0;
 }
+
 
 

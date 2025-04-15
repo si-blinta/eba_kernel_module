@@ -229,7 +229,7 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  490</span>    list_for_each_entry_safe(buf, tmp, &amp;<a class="code hl_variable" href="eba__utils_8c.html#aa10d342d54c36bfe3e511307377ca0ac">eba_buffer_list</a>, <a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>) {</div>
 <div class="line"><span class="lineno">  491</span>         <span class="comment">// If expires is 0, the lifetime is infinite, so skip.</span></div>
 <div class="line"><span class="lineno">  492</span>         <span class="keywordflow">if</span> (buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#af29f1c8dd01b849bafb37aa4476965ca">expires</a> != 0 &amp;&amp; now &gt;= buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#af29f1c8dd01b849bafb37aa4476965ca">expires</a>) {</div>
-<div class="line"><span class="lineno">  493</span>               <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA: Buffer at %llu expired (current time %lld &gt;= expires %lld)\n&quot;</span>,buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a40e820948709fea00a950184489f2551">address</a>, now,buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#af29f1c8dd01b849bafb37aa4476965ca">expires</a>);    </div>
+<div class="line"><span class="lineno">  493</span>               <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA: Buffer at %llu expired (current time %lld &gt;= expires %lld)\n&quot;</span>,buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a40e820948709fea00a950184489f2551">address</a>, now,buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#af29f1c8dd01b849bafb37aa4476965ca">expires</a>);    </div>
 <div class="line"><span class="lineno">  494</span>               <span class="comment">// Remove the entry from the tracking list</span></div>
 <div class="line"><span class="lineno">  495</span>              list_del(&amp;buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>);</div>
 <div class="line"><span class="lineno">  496</span>              <span class="comment">// Free the allocated memory from the gen_pool</span></div>
@@ -240,7 +240,7 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  501</span>    }</div>
 <div class="line"><span class="lineno">  502</span>    spin_unlock(&amp;<a class="code hl_variable" href="eba__internals_8c.html#a982f8eb95e071d563c76c97029607279">eba_buffer_list_lock</a>);</div>
 <div class="line"><span class="lineno">  503</span>}</div>
-<div class="ttc" id="aeba_8h_html_afdda61f5670887de0d3ab5c02a36d5bc"><div class="ttname"><a href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a></div><div class="ttdeci">#define EBA_DBG(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00079">eba.h:79</a></div></div>
+<div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 <div class="ttc" id="aeba__internals_8c_html_a982f8eb95e071d563c76c97029607279"><div class="ttname"><a href="eba__internals_8c.html#a982f8eb95e071d563c76c97029607279">eba_buffer_list_lock</a></div><div class="ttdeci">spinlock_t eba_buffer_list_lock</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00006">eba_internals.c:6</a></div></div>
 <div class="ttc" id="aeba__internals_8c_html_af0915878ded78f9978ce0d608f41d659"><div class="ttname"><a href="eba__internals_8c.html#af0915878ded78f9978ce0d608f41d659">eba_pool</a></div><div class="ttdeci">struct gen_pool * eba_pool</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00009">eba_internals.c:9</a></div></div>
 <div class="ttc" id="aeba__utils_8c_html_aa10d342d54c36bfe3e511307377ca0ac"><div class="ttname"><a href="eba__utils_8c.html#aa10d342d54c36bfe3e511307377ca0ac">eba_buffer_list</a></div><div class="ttdeci">struct list_head eba_buffer_list</div></div>
@@ -313,7 +313,7 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  166</span>    <span class="comment">/* Free the tracking structure */</span></div>
 <div class="line"><span class="lineno">  167</span>    kfree(buf);</div>
 <div class="line"><span class="lineno">  168</span> </div>
-<div class="line"><span class="lineno">  169</span>    <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA: Freed memory at %llu, size: %llu bytes\n&quot;</span>, (uint64_t)ptr, buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a7185bdb189f72139598b1f6f6163d639">size</a>);</div>
+<div class="line"><span class="lineno">  169</span>    <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA: Freed memory at %llu, size: %llu bytes\n&quot;</span>, (uint64_t)ptr, buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a7185bdb189f72139598b1f6f6163d639">size</a>);</div>
 <div class="line"><span class="lineno">  170</span>    <span class="keywordflow">return</span> 0;</div>
 <div class="line"><span class="lineno">  171</span>}</div>
 <div class="ttc" id="aeba_8h_html_abc39ed4c3500e6d4ad7ebb88b32d0011"><div class="ttname"><a href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a></div><div class="ttdeci">#define EBA_ERR(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00075">eba.h:75</a></div></div>
@@ -407,7 +407,7 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  117</span>    list_add(&amp;buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>, &amp;<a class="code hl_variable" href="eba__utils_8c.html#aa10d342d54c36bfe3e511307377ca0ac">eba_buffer_list</a>);</div>
 <div class="line"><span class="lineno">  118</span>    spin_unlock(&amp;<a class="code hl_variable" href="eba__internals_8c.html#a982f8eb95e071d563c76c97029607279">eba_buffer_list_lock</a>);</div>
 <div class="line"><span class="lineno">  119</span> </div>
-<div class="line"><span class="lineno">  120</span>    <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n&quot;</span>,</div>
+<div class="line"><span class="lineno">  120</span>    <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA: Allocated memory at %llu, size: %llu bytes, lifetime: %llu sec\n&quot;</span>,</div>
 <div class="line"><span class="lineno">  121</span>            (uint64_t)ptr, <a class="code hl_variable" href="ebp_8h.html#af931a8871310b4dad23f0f0b0f623560">size</a>, <a class="code hl_variable" href="ebp_8h.html#a9536bfd8e99d84baae4fa42d3e9067c4">life_time</a>);</div>
 <div class="line"><span class="lineno">  122</span>    </div>
 <div class="line"><span class="lineno">  123</span>    <span class="keywordflow">return</span> ptr;</div>
@@ -495,7 +495,6 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  272</span>    kfree(sizes);</div>
 <div class="line"><span class="lineno">  273</span>    <span class="keywordflow">return</span> ret;</div>
 <div class="line"><span class="lineno">  274</span>}</div>
-<div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 <div class="ttc" id="aeba__internals_8c_html_aa68008efd2aae81e0502b552653e4d35"><div class="ttname"><a href="eba__internals_8c.html#aa68008efd2aae81e0502b552653e4d35">eba_internals_malloc</a></div><div class="ttdeci">void * eba_internals_malloc(uint64_t size, uint64_t life_time)</div><div class="ttdoc">Allocates a block of memory from the EBA memory pool.</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00073">eba_internals.c:73</a></div></div>
 <div class="ttc" id="aeba__internals_8c_html_af312e4e6c7102d0c8e30b0f13d795df7"><div class="ttname"><a href="eba__internals_8c.html#af312e4e6c7102d0c8e30b0f13d795df7">eba_internals_free</a></div><div class="ttdeci">int eba_internals_free(void *ptr)</div><div class="ttdoc">Frees a previously allocated memory block from the EBA memory pool.</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00137">eba_internals.c:137</a></div></div>
 </div><!-- fragment -->
@@ -532,10 +531,10 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  186</span>    list_for_each_entry(buf, &amp;<a class="code hl_variable" href="eba__utils_8c.html#aa10d342d54c36bfe3e511307377ca0ac">eba_buffer_list</a>, <a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>) {</div>
 <div class="line"><span class="lineno">  187</span>         outstanding++;</div>
 <div class="line"><span class="lineno">  188</span>    }</div>
-<div class="line"><span class="lineno">  189</span>    <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA: %d outstanding buffers before cleanup\n&quot;</span>, outstanding);</div>
+<div class="line"><span class="lineno">  189</span>    <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA: %d outstanding buffers before cleanup\n&quot;</span>, outstanding);</div>
 <div class="line"><span class="lineno">  190</span>    <span class="keywordflow">if</span> (outstanding &gt; 0) {</div>
 <div class="line"><span class="lineno">  191</span>         list_for_each_entry_safe(buf, tmp, &amp;<a class="code hl_variable" href="eba__utils_8c.html#aa10d342d54c36bfe3e511307377ca0ac">eba_buffer_list</a>, <a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>) {</div>
-<div class="line"><span class="lineno">  192</span>              <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA: Forcing free of buffer at %llu, size: %llu bytes\n&quot;</span>,</div>
+<div class="line"><span class="lineno">  192</span>              <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA: Forcing free of buffer at %llu, size: %llu bytes\n&quot;</span>,</div>
 <div class="line"><span class="lineno">  193</span>                      buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a40e820948709fea00a950184489f2551">address</a>, buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a7185bdb189f72139598b1f6f6163d639">size</a>);</div>
 <div class="line"><span class="lineno">  194</span>              list_del(&amp;buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a799b7a7186be723e2d34b5d480e8ba34">node</a>);</div>
 <div class="line"><span class="lineno">  195</span>              gen_pool_free(<a class="code hl_variable" href="eba__internals_8c.html#af0915878ded78f9978ce0d608f41d659">eba_pool</a>, buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a40e820948709fea00a950184489f2551">address</a>, buf-&gt;<a class="code hl_variable" href="structeba__buffer.html#a7185bdb189f72139598b1f6f6163d639">size</a>);</div>
@@ -929,7 +928,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 15 2025 10:07:50 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Tue Apr 15 2025 12:44:58 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

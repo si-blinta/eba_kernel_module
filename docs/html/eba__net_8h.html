@@ -451,14 +451,14 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">   78</span> </div>
 <div class="line"><span class="lineno">   79</span>    <span class="comment">/* Some drivers set max_mtu in the net_device structure */</span></div>
 <div class="line"><span class="lineno">   80</span>    *max_mtu = dev-&gt;max_mtu;</div>
-<div class="line"><span class="lineno">   81</span>    <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n&quot;</span>,</div>
+<div class="line"><span class="lineno">   81</span>    <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n&quot;</span>,</div>
 <div class="line"><span class="lineno">   82</span>            dev-&gt;name, dev-&gt;mtu, dev-&gt;max_mtu);</div>
 <div class="line"><span class="lineno">   83</span> </div>
 <div class="line"><span class="lineno">   84</span>    dev_put(dev);</div>
 <div class="line"><span class="lineno">   85</span>    <span class="keywordflow">return</span> 0;</div>
 <div class="line"><span class="lineno">   86</span>}</div>
+<div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 <div class="ttc" id="aeba_8h_html_abc39ed4c3500e6d4ad7ebb88b32d0011"><div class="ttname"><a href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a></div><div class="ttdeci">#define EBA_ERR(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00075">eba.h:75</a></div></div>
-<div class="ttc" id="aeba_8h_html_afdda61f5670887de0d3ab5c02a36d5bc"><div class="ttname"><a href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a></div><div class="ttdeci">#define EBA_DBG(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00079">eba.h:79</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -523,7 +523,6 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">  118</span>    dev_put(dev);</div>
 <div class="line"><span class="lineno">  119</span>    <span class="keywordflow">return</span> ret;</div>
 <div class="line"><span class="lineno">  120</span>}</div>
-<div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -905,7 +904,7 @@ Functions</h2></td></tr>
 <div class="line"><span class="lineno">   54</span>        <a class="code hl_define" href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmission failed: %d\n&quot;</span>, ret);</div>
 <div class="line"><span class="lineno">   55</span>        <span class="comment">/* In case of error, the kernel should free the skb */</span></div>
 <div class="line"><span class="lineno">   56</span>    } <span class="keywordflow">else</span> {</div>
-<div class="line"><span class="lineno">   57</span>        <a class="code hl_define" href="eba_8h.html#afdda61f5670887de0d3ab5c02a36d5bc">EBA_DBG</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmitted successfully on %s\n&quot;</span>, ifname);</div>
+<div class="line"><span class="lineno">   57</span>        <a class="code hl_define" href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a>(<span class="stringliteral">&quot;send_raw_ethernet_packet: Packet transmitted successfully on %s\n&quot;</span>, ifname);</div>
 <div class="line"><span class="lineno">   58</span>    }</div>
 <div class="line"><span class="lineno">   59</span>    <span class="comment">/* Release the reference to the network device */</span></div>
 <div class="line"><span class="lineno">   60</span>    dev_put(dev);</div>
@@ -917,7 +916,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 15 2025 10:07:50 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Tue Apr 15 2025 12:44:58 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

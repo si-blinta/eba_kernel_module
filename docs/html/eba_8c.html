@@ -75,6 +75,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">eba.c File Reference</div></div>
@@ -172,6 +173,11 @@ Include dependency graph for eba.c:</div>
 </div>
 <p><a href="eba_8c_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:ad72dbcf6d0153db1b8d8a58001feed83" id="r_ad72dbcf6d0153db1b8d8a58001feed83"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="eba_8c.html#ad72dbcf6d0153db1b8d8a58001feed83">DEBUG</a></td></tr>
+<tr class="separator:ad72dbcf6d0153db1b8d8a58001feed83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ab16d2bde460ccba934cdb7d7d0914d4d" id="r_ab16d2bde460ccba934cdb7d7d0914d4d"><td class="memItemLeft" align="right" valign="top">static long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="eba_8c.html#ab16d2bde460ccba934cdb7d7d0914d4d">eba_ioctl</a> (struct file *file, unsigned int cmd, unsigned long arg)</td></tr>
@@ -212,6 +218,23 @@ Variables</h2></td></tr>
 <tr class="memitem:a6fe87425c60d0988a6475fa406ae78b4" id="r_a6fe87425c60d0988a6475fa406ae78b4"><td class="memItemLeft" align="right" valign="top">static const struct file_operations&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="eba_8c.html#a6fe87425c60d0988a6475fa406ae78b4">eba_fops</a></td></tr>
 <tr class="separator:a6fe87425c60d0988a6475fa406ae78b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ad72dbcf6d0153db1b8d8a58001feed83" name="ad72dbcf6d0153db1b8d8a58001feed83"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad72dbcf6d0153db1b8d8a58001feed83">&#9670;&#160;</a></span>DEBUG</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DEBUG</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="eba_8c_source.html#l00012">12</a> of file <a class="el" href="eba_8c_source.html">eba.c</a>.</p>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ab16d2bde460ccba934cdb7d7d0914d4d" name="ab16d2bde460ccba934cdb7d7d0914d4d"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab16d2bde460ccba934cdb7d7d0914d4d">&#9670;&#160;</a></span>eba_ioctl()</h2>
@@ -341,14 +364,14 @@ Variables</h2></td></tr>
 <div class="ttc" id="aeba__internals_8h_html_a335a1ff6fd7660e86e30c8795555dc64"><div class="ttname"><a href="eba__internals_8h.html#a335a1ff6fd7660e86e30c8795555dc64">eba_internals_read</a></div><div class="ttdeci">int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t size)</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00321">eba_internals.c:321</a></div></div>
 <div class="ttc" id="aeba__internals_8h_html_a7105161d9429ab87f1096a262dc41c1e"><div class="ttname"><a href="eba__internals_8h.html#a7105161d9429ab87f1096a262dc41c1e">eba_internals_write</a></div><div class="ttdeci">int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64_t size)</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00276">eba_internals.c:276</a></div></div>
 <div class="ttc" id="aeba__internals_8h_html_aa68008efd2aae81e0502b552653e4d35"><div class="ttname"><a href="eba__internals_8h.html#aa68008efd2aae81e0502b552653e4d35">eba_internals_malloc</a></div><div class="ttdeci">void * eba_internals_malloc(uint64_t size, uint64_t life_time)</div><div class="ttdoc">Allocates a block of memory from the EBA memory pool.</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00073">eba_internals.c:73</a></div></div>
-<div class="ttc" id="aebp_8h_html_a5797409cbe601f59528249dc9790f9f5"><div class="ttname"><a href="ebp_8h.html#a5797409cbe601f59528249dc9790f9f5">ebp_remote_alloc</a></div><div class="ttdeci">int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00338">ebp.c:338</a></div></div>
-<div class="ttc" id="aebp_8h_html_a9a817fd284d5ccf529aebcfcbe85e84c"><div class="ttname"><a href="ebp_8h.html#a9a817fd284d5ccf529aebcfcbe85e84c">ebp_remote_write</a></div><div class="ttdeci">int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00351">ebp.c:351</a></div></div>
-<div class="ttc" id="aebp_8h_html_afb9b787c29a97f4407bf653986497a95"><div class="ttname"><a href="ebp_8h.html#afb9b787c29a97f4407bf653986497a95">ebp_remote_read</a></div><div class="ttdeci">int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00364">ebp.c:364</a></div></div>
-<div class="ttc" id="astructeba__alloc__data_html"><div class="ttname"><a href="structeba__alloc__data.html">eba_alloc_data</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00095">eba.h:95</a></div></div>
-<div class="ttc" id="astructeba__remote__alloc_html"><div class="ttname"><a href="structeba__remote__alloc.html">eba_remote_alloc</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00131">eba.h:131</a></div></div>
-<div class="ttc" id="astructeba__remote__read_html"><div class="ttname"><a href="structeba__remote__read.html">eba_remote_read</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00174">eba.h:174</a></div></div>
-<div class="ttc" id="astructeba__remote__write_html"><div class="ttname"><a href="structeba__remote__write.html">eba_remote_write</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00151">eba.h:151</a></div></div>
-<div class="ttc" id="astructeba__rw__data_html"><div class="ttname"><a href="structeba__rw__data.html">eba_rw_data</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00112">eba.h:112</a></div></div>
+<div class="ttc" id="aebp_8h_html_a5797409cbe601f59528249dc9790f9f5"><div class="ttname"><a href="ebp_8h.html#a5797409cbe601f59528249dc9790f9f5">ebp_remote_alloc</a></div><div class="ttdeci">int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00387">ebp.c:387</a></div></div>
+<div class="ttc" id="aebp_8h_html_a9a817fd284d5ccf529aebcfcbe85e84c"><div class="ttname"><a href="ebp_8h.html#a9a817fd284d5ccf529aebcfcbe85e84c">ebp_remote_write</a></div><div class="ttdeci">int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00400">ebp.c:400</a></div></div>
+<div class="ttc" id="aebp_8h_html_afb9b787c29a97f4407bf653986497a95"><div class="ttname"><a href="ebp_8h.html#afb9b787c29a97f4407bf653986497a95">ebp_remote_read</a></div><div class="ttdeci">int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, const char mac[6])</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00413">ebp.c:413</a></div></div>
+<div class="ttc" id="astructeba__alloc__data_html"><div class="ttname"><a href="structeba__alloc__data.html">eba_alloc_data</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00093">eba.h:93</a></div></div>
+<div class="ttc" id="astructeba__remote__alloc_html"><div class="ttname"><a href="structeba__remote__alloc.html">eba_remote_alloc</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00129">eba.h:129</a></div></div>
+<div class="ttc" id="astructeba__remote__read_html"><div class="ttname"><a href="structeba__remote__read.html">eba_remote_read</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00172">eba.h:172</a></div></div>
+<div class="ttc" id="astructeba__remote__write_html"><div class="ttname"><a href="structeba__remote__write.html">eba_remote_write</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00149">eba.h:149</a></div></div>
+<div class="ttc" id="astructeba__rw__data_html"><div class="ttname"><a href="structeba__rw__data.html">eba_rw_data</a></div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00110">eba.h:110</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -393,7 +416,7 @@ Variables</h2></td></tr>
 <div class="ttc" id="aeba_8c_html_aec4bb0607fee8846692ce373ee898738"><div class="ttname"><a href="eba_8c.html#aec4bb0607fee8846692ce373ee898738">eba_timer</a></div><div class="ttdeci">static struct timer_list eba_timer</div><div class="ttdef"><b>Definition</b> <a href="eba_8c_source.html#l00114">eba.c:114</a></div></div>
 <div class="ttc" id="aeba_8h_html_a348aeec4b61303c2c13a73d410cbc431"><div class="ttname"><a href="eba_8h.html#a348aeec4b61303c2c13a73d410cbc431">EBA_INFO</a></div><div class="ttdeci">#define EBA_INFO(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00073">eba.h:73</a></div></div>
 <div class="ttc" id="aeba__internals_8h_html_a88b1d73b01494d7cf80e446dd4f3452f"><div class="ttname"><a href="eba__internals_8h.html#a88b1d73b01494d7cf80e446dd4f3452f">eba_internals_mempool_free</a></div><div class="ttdeci">void eba_internals_mempool_free(void)</div><div class="ttdoc">Frees the entire memory pool for the EBA module.</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00179">eba_internals.c:179</a></div></div>
-<div class="ttc" id="aebp_8h_html_a3a85ca225bab9660ef8810c5bc3e2a82"><div class="ttname"><a href="ebp_8h.html#a3a85ca225bab9660ef8810c5bc3e2a82">ebp_exit</a></div><div class="ttdeci">void ebp_exit(void)</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00146">ebp.c:146</a></div></div>
+<div class="ttc" id="aebp_8h_html_a3a85ca225bab9660ef8810c5bc3e2a82"><div class="ttname"><a href="ebp_8h.html#a3a85ca225bab9660ef8810c5bc3e2a82">ebp_exit</a></div><div class="ttdeci">void ebp_exit(void)</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00178">ebp.c:178</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -472,10 +495,10 @@ Variables</h2></td></tr>
 <div class="line"><span class="lineno">  194</span> }</div>
 <div class="ttc" id="aeba_8c_html_a197ec6352d59bcbec337c9eb1f5d5930"><div class="ttname"><a href="eba_8c.html#a197ec6352d59bcbec337c9eb1f5d5930">eba_timer_callback</a></div><div class="ttdeci">static void eba_timer_callback(struct timer_list *t)</div><div class="ttdef"><b>Definition</b> <a href="eba_8c_source.html#l00117">eba.c:117</a></div></div>
 <div class="ttc" id="aeba_8c_html_a6fe87425c60d0988a6475fa406ae78b4"><div class="ttname"><a href="eba_8c.html#a6fe87425c60d0988a6475fa406ae78b4">eba_fops</a></div><div class="ttdeci">static const struct file_operations eba_fops</div><div class="ttdef"><b>Definition</b> <a href="eba_8c_source.html#l00138">eba.c:138</a></div></div>
-<div class="ttc" id="aeba_8h_html_a5f873c0605c52cc364313cdfd363e6bb"><div class="ttname"><a href="eba_8h.html#a5f873c0605c52cc364313cdfd363e6bb">EBA_CLEAN_BUFFER_CALLBACK_TIMER</a></div><div class="ttdeci">#define EBA_CLEAN_BUFFER_CALLBACK_TIMER</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00083">eba.h:83</a></div></div>
+<div class="ttc" id="aeba_8h_html_a5f873c0605c52cc364313cdfd363e6bb"><div class="ttname"><a href="eba_8h.html#a5f873c0605c52cc364313cdfd363e6bb">EBA_CLEAN_BUFFER_CALLBACK_TIMER</a></div><div class="ttdeci">#define EBA_CLEAN_BUFFER_CALLBACK_TIMER</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00081">eba.h:81</a></div></div>
 <div class="ttc" id="aeba_8h_html_abc39ed4c3500e6d4ad7ebb88b32d0011"><div class="ttname"><a href="eba_8h.html#abc39ed4c3500e6d4ad7ebb88b32d0011">EBA_ERR</a></div><div class="ttdeci">#define EBA_ERR(fmt,...)</div><div class="ttdef"><b>Definition</b> <a href="eba_8h_source.html#l00075">eba.h:75</a></div></div>
 <div class="ttc" id="aeba__internals_8h_html_ade5ffaeb70eedb7861dbff25130297de"><div class="ttname"><a href="eba__internals_8h.html#ade5ffaeb70eedb7861dbff25130297de">eba_internals_mempool_init</a></div><div class="ttdeci">int eba_internals_mempool_init(void)</div><div class="ttdoc">Initializes the memory pool for the EBA module.</div><div class="ttdef"><b>Definition</b> <a href="eba__internals_8c_source.html#l00022">eba_internals.c:22</a></div></div>
-<div class="ttc" id="aebp_8h_html_ac76907686d4be5c081c788cd524d064c"><div class="ttname"><a href="ebp_8h.html#ac76907686d4be5c081c788cd524d064c">ebp_init</a></div><div class="ttdeci">void ebp_init(void)</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00138">ebp.c:138</a></div></div>
+<div class="ttc" id="aebp_8h_html_ac76907686d4be5c081c788cd524d064c"><div class="ttname"><a href="ebp_8h.html#ac76907686d4be5c081c788cd524d064c">ebp_init</a></div><div class="ttdeci">void ebp_init(void)</div><div class="ttdef"><b>Definition</b> <a href="ebp_8c_source.html#l00166">ebp.c:166</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -844,7 +867,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 15 2025 10:07:50 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Tue Apr 15 2025 12:44:58 for EBA Framework by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

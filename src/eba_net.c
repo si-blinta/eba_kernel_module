@@ -54,7 +54,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
         EBA_ERR("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
         /* In case of error, the kernel should free the skb */
     } else {
-        EBA_DBG("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
+        EBA_INFO("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
     }
     /* Release the reference to the network device */
     dev_put(dev);
@@ -78,7 +78,7 @@ int eba_net_get_max_mtu(const char *ifname, int *max_mtu)
 
     /* Some drivers set max_mtu in the net_device structure */
     *max_mtu = dev->max_mtu;
-    EBA_DBG("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
+    EBA_INFO("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
             dev->name, dev->mtu, dev->max_mtu);
 
     dev_put(dev);
