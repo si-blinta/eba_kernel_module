@@ -150,7 +150,7 @@ void ebp_exit(void)
 
 /* Global arrays for the EBA protocol data structures */
 struct node_info node_infos[MAX_NODE_COUNT];
-int nodes_count = 0;
+int nodes_count = 1;
 struct invoke_tracker invoke_trackers[MAX_INVOKE_COUNT];
 struct op_entry op_entries[MAX_OP_COUNT];
 void print_op_entries(void)
@@ -200,7 +200,7 @@ int op_entry_array_init(void)
     }
     return 0;
 }
-int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn)
+int ebp_register_op(uint32_t op_id, ebp_op_t fn)
 {
     int i;
 
@@ -249,21 +249,21 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char
 int ebp_ops_init(void)
 {
     int ret = 0;
-    if (ebp_register_op(EBP_OP_ALLOC,ebp_op_alloc_handler) < 0)
+    if (ebp_register_op(EBP_OP_ALLOC,ebp_op_alloc) < 0)
         ret = -1;
-    if (ebp_register_op(EBP_OP_WRITE,ebp_op_write_handler) < 0)
+    if (ebp_register_op(EBP_OP_WRITE,ebp_op_write) < 0)
         ret = -1;
-    if (ebp_register_op(EBP_OP_READ,ebp_op_read_handler) < 0)
+    if (ebp_register_op(EBP_OP_READ,ebp_op_read) < 0)
         ret = -1;    
     return ret;
 }
 
-int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6])
 {
     /* Check that args is not NULL and that its is large enough for our fixed-size header */
     if (!args || arg_len < sizeof(struct ebp_op_write_args))
     {
-        EBA_ERR("ebp_op_write_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_write_args), args);
+        EBA_ERR("ebp_op_write: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_write_args), args);
         return -EINVAL;
     }
 
@@ -272,51 +272,51 @@ int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6])
 
     if (arg_len < header_size + wr->size)
     {
-        EBA_ERR("ebp_op_write_handler: args too short for payload data: arg_len = %llu, header_size = %llu, expected payload size = %llu\n",
+        EBA_ERR("ebp_op_write: args too short for payload data: arg_len = %llu, header_size = %llu, expected payload size = %llu\n",
                arg_len, header_size, wr->size);
         return -EINVAL;
     }
 
     const uint8_t *payload = (const uint8_t *)args + header_size;
 
-    EBA_INFO("ebp_op_write_handler: buff_id = %llx offset = %llu size = %llu\n",wr->buff_id, wr->offset, wr->size);
+    EBA_INFO("ebp_op_write: buff_id = %llx offset = %llu size = %llu\n",wr->buff_id, wr->offset, wr->size);
      // TODO here inqueue to the invoke queue and send an ack
-    //print_hex_dump(KERN_INFO, "ebp_op_write_handler payload :", DUMP_PREFIX_OFFSET, 16, 1,payload, wr->size, true);
+    //print_hex_dump(KERN_INFO, "ebp_op_write payload :", DUMP_PREFIX_OFFSET, 16, 1,payload, wr->size, true);
     send_invoke_ack_packet(INVOKE_QUEUED,mac,"enp0s8");
     return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
 }
 
-int ebp_op_alloc_handler(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_alloc(const void *args, uint64_t arg_len, const char mac[6])
 {
     if (!args || arg_len < sizeof(struct ebp_op_alloc_args)) {
-        EBA_ERR("ebp_op_alloc_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",
+        EBA_ERR("ebp_op_alloc: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",
                arg_len, sizeof(struct ebp_op_alloc_args), args);
         return -EINVAL;
     }
 
     const struct ebp_op_alloc_args *alloc_args = args;
-    EBA_INFO("ebp_op_alloc_handler: Allocation request received: size = %llu, life_time = %llu, receive bufferID = %llu\n",
+    EBA_INFO("ebp_op_alloc: Allocation request received: size = %llu, life_time = %llu, receive bufferID = %llu\n",
             alloc_args->size, alloc_args->life_time, alloc_args->buffer_id);
 
     void *new_buf = eba_internals_malloc(alloc_args->size, alloc_args->life_time);
     if (!new_buf) {
-        EBA_ERR("ebp_op_alloc_handler: Allocation failed for size %llu\n", alloc_args->size);
+        EBA_ERR("ebp_op_alloc: Allocation failed for size %llu\n", alloc_args->size);
         return -ENOMEM;
     }
     uint64_t buf_id = (uint64_t)new_buf;
     ebp_remote_write(alloc_args->buffer_id,0,sizeof(buf_id),(char *)&buf_id,mac);
     return 0;
 }
-int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6])
 {
     /* Verify that a valid argument is provided and that it's at least as large as our header. */
     if (!args || arg_len < sizeof(struct ebp_op_read_args)) {
-        EBA_ERR("ebp_op_read_handler: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_read_args), args);
+        EBA_ERR("ebp_op_read: invalid arg_len %llu (must be >= %zu) or null pointer %p\n",arg_len, sizeof(struct ebp_op_read_args), args);
         return -EINVAL;
     }
     const struct ebp_op_read_args *rd_args = args;
 
-    EBA_INFO("ebp_op_read_handler: dest_buffer_id = %llu, src_buffer_id = %llu, dst_offset = %llu, src_offset = %llu, size = %llu\n",rd_args->dst_buffer_id,rd_args->src_buffer_id,
+    EBA_INFO("ebp_op_read: dest_buffer_id = %llu, src_buffer_id = %llu, dst_offset = %llu, src_offset = %llu, size = %llu\n",rd_args->dst_buffer_id,rd_args->src_buffer_id,
          rd_args->dst_offset,rd_args->src_offset, rd_args->size);
     // TODO here inquue to the invoke queue, if it is queued send an ack
     void* read_data = kmalloc(rd_args->size,GFP_KERNEL);
@@ -328,11 +328,11 @@ int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6])
     // TODO send the invoke with ( write request to the concerned node with read_data as the payload ! ).
     
     if (ret < 0) {
-        EBA_ERR("ebp_op_read_handler: eba_internals_read() failed with error %d\n", ret);
+        EBA_ERR("ebp_op_read: eba_internals_read() failed with error %d\n", ret);
         return ret;
     }
 
-    EBA_INFO("ebp_op_read_handler: Successfully read %llu bytes from src_buffer_id %llu into dest_buffer_id %llu\n", rd_args->size, rd_args->src_buffer_id, rd_args->dst_buffer_id);
+    EBA_INFO("ebp_op_read: Successfully read %llu bytes from src_buffer_id %llu into dest_buffer_id %llu\n", rd_args->size, rd_args->src_buffer_id, rd_args->dst_buffer_id);
     return 0;
 }
 int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/)

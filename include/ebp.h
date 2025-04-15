@@ -1,3 +1,13 @@
+/**
+ * @file ebp.h
+ * @brief EBA Protocol Header File.
+ *
+ * This header defines the data structures, constants, and function prototypes
+ * required to implement the EB protocol for remote buffer allocation,
+ * read/write operations, node discovery, and operation invocation.
+ *
+ * The EB protocol uses custom Ethernet frame types for communication between nodes.
+ */
 #ifndef EBP_H
 #define EBP_H
 #include <linux/netdevice.h>
@@ -5,13 +15,29 @@
 #include <linux/if_ether.h>
 #include <linux/errno.h>
 #include <linux/types.h> 
+/* EBA Protocol Constants */
+
+/** EBA EtherType used to identify EBA frames in Ethernet communication. */
 #define EBP_ETHERTYPE 0xEBA0
+/** Maximum size for the node specification buffer. */
 #define EBP_NODE_SPECS_MAX_SIZE 512
+/** Default maximum lifetime for node specifications buffer. */
 #define EBP_NODE_SPECS_MAX_LIFE_TIME 0
+/** Maximum number of nodes that can be registered. */
 #define MAX_NODE_COUNT    10
+/** Maximum number of invocation entries allowed. */
 #define MAX_INVOKE_COUNT  20
+/** Maximum number of operation entries allowed in the op_entries array. */
 #define MAX_OP_COUNT      5
 
+/**
+ * enum INVOKE_STATUS - Possible statuses for an invocation.
+ * @INVOKE_QUEUED:      Invocation is queued for processing.
+ * @INVOKE_IN_PROGRESS: Invocation is currently being processed.
+ * @INVOKE_COMPLETED:   Invocation has completed successfully.
+ * @INVOKE_FAILED:      Invocation has failed.
+ * @INVOKE_DEFAULT:     Default state for an uninitialized invocation.
+ */
 enum INVOKE_STATUS {
     INVOKE_QUEUED = 0,   
     INVOKE_IN_PROGRESS,    
@@ -22,10 +48,10 @@ enum INVOKE_STATUS {
 
 /**
  * struct node_info - Contains metadata for an EBA node.
- * @param id:         Unique identifier for the node.
- * @param mtu:        Maximum transmission unit supported by the node.
- * @param mac:        6-byte MAC address.
- * @param node_specs: Buffer id containing node specification details.
+ * @id:          Unique identifier for the node.
+ * @mtu:         Maximum transmission unit supported by the node.
+ * @mac:         6-byte MAC address of the node.
+ * @node_specs:  Identifier for the buffer containing node specification details.
  */
 struct node_info {
     uint16_t id;
@@ -35,11 +61,11 @@ struct node_info {
 };
 
 /**
- * struct invoke_tracker - Tracks an invocation in the EBA protocol.
- * @param iid:    Invocation identifier.
- * @param pid:    Process identifier corresponding to the invocation.
- * @param done:   Flag indicating whether the invocation is complete.
- * @param status: Current status of the invocation.
+ * struct invoke_tracker - Tracks the status of an EBA protocol invocation.
+ * @iid:    Unique identifier for the invocation.
+ * @pid:    Process identifier associated with the invocation.
+ * @done:   Boolean flag indicating whether the invocation is complete.
+ * @status: Current status of the invocation (see INVOKE_STATUS).
  */
 struct invoke_tracker {
     uint32_t iid;
@@ -49,58 +75,79 @@ struct invoke_tracker {
 };
 
 /**
- * @brief The function pointer type used by each op_entry.
- * 
- * All operation handlers take a pointer to the raw arguments buffer 
- * plus its length and destination mac address.
- * Inside the handler, you cast and parse `args` as needed.
+ * @brief Function pointer type for EBA operations.
+ *
+ * This function pointer is used by each op_entry to reference an operation
+ * function. Every EBA operation function must accept a pointer to a raw
+ * arguments buffer, the length of the arguments, and the destination MAC address.
+ *
+ * @args    Pointer to the raw arguments buffer.
+ * @arg_len Length of the arguments in bytes.
+ * @mac     Destination MAC address.
+ *
+ * @Returns 0 on success, or a negative error code on failure.
  */
-typedef int (*ebp_op_handler_t)(const void *args, uint64_t arg_len, const char mac[6]);
+typedef int (*ebp_op_t)(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
- * @struct op_entry
- * @brief Represents an operation entry in the EBA protocol.
- * @param op_id   Operation identifier.
- * @param op_ptr  Pointer to the corresponding operation function (ebp_op_handler_t).
+ * struct op_entry - Represents an operation entry in the EBA protocol.
+ * @op_id:   Unique operation identifier.
+ * @op_ptr:  Function pointer to the operation implementation.
+ *
+ * This structure maps operation IDs to the corresponding function
+ * implementations that process remote EBA operations.
  */
 struct op_entry {
     uint32_t          op_id;
-    ebp_op_handler_t  op_ptr;
+    ebp_op_t  op_ptr;
     
 };
 
 /**
  * node_info_array_init - Initialize an array of node_info structures.
- * - id is set to 0.
- * - mtu is set to 0.
- * - mac is zeroed out.
- * - node_specs is set to 0.
  *
- * @returns: 0 on success, or -EINVAL if info_array is NULL.
+ * This function initializes each element in the node_info array by setting:
+ * - id to 0,
+ * - mtu to 0,
+ * - mac to zero,
+ * - node_specs to 0.
+ *
+ * @return 0 on success, or -EINVAL if the provided array pointer is NULL.
  */
 int node_info_array_init(void);
 
 /**
  * invoke_tracker_array_init - Initialize an array of invoke_tracker structures.
- * - iid is set to 0.
- * - pid is set to 0.
- * - done is set to false.
- * - status is set to INVOKE_DEFAULT.
  *
- * @returns: 0 on success, or -EINVAL if tracker_array is NULL.
+ * This function initializes each element in the invoke_tracker array by setting:
+ * - iid to 0,
+ * - pid to 0,
+ * - done to false,
+ * - status to INVOKE_DEFAULT.
+ *
+ * @return 0 on success, or -EINVAL if the provided array pointer is NULL.
  */
 int invoke_tracker_array_init(void);
 
 /**
  * op_entry_array_init - Initialize an array of op_entry structures.
- * - op_id is set to 0.
- * - op_ptr is set to NULL.
  *
- * @returns: 0 on success, or -EINVAL if op_array is NULL.
+ * This function initializes each element in the op_entry array by setting:
+ * - op_id to 0,
+ * - op_ptr to NULL.
+ *
+ * @return 0 on success, or -EINVAL if the provided array pointer is NULL.
  */
 int op_entry_array_init(void);
 
 /* EBA Message Types */
+/**
+ * enum EBP_MSG - Enumerates the different message types used in the EBA protocol.
+ * @EBP_MSG_DISCOVER:     Message to initiate node discovery.
+ * @EBP_MSG_INVOKE:       Message to request an operation invocation.
+ * @EBP_MSG_DISCOVER_ACK: Response message for a discovery request.
+ * @EBP_MSG_INVOKE_ACK:   Acknowledgment message for an invocation request.
+ */
 enum EBP_MSG
 {
     EBP_MSG_DISCOVER = 0x01,
@@ -110,11 +157,12 @@ enum EBP_MSG
 };
 
 /**
- * @brief Enumerates the internal EBA operation IDs.
- * 
- * You can map these IDs to the functions or wrappers that will be stored
- * in the op_entry array. Make sure these do not collide with any other
- * IDs you use in your system.
+ * enum EBP_OP_IDS - Enumerates exposed EBA operation identifiers.
+ *
+ * These identifiers are used to map functions to operations in the op_entry array.
+ * @EBP_OP_ALLOC: Operation ID for buffer allocation.
+ * @EBP_OP_READ:  Operation ID for reading from a buffer.
+ * @EBP_OP_WRITE: Operation ID for writing to a buffer.
  */
 enum EBP_OP_IDS {
     EBP_OP_ALLOC = 1,
@@ -123,11 +171,12 @@ enum EBP_OP_IDS {
 };
 
 /**
- * @brief Arguments for the internal EBA "write" operation.
- * @param buff_id: The identifier (virtual address) of the target buffer. 
- * @param offset: The offset (in bytes) from where to start writing.
- * @param size:  The number of bytes to write..
- *              unique identifier
+ * struct ebp_op_write_args - Arguments for the exposed EBA "write" operation.
+ * @buff_id: Identifier (virtual address) of the target buffer.
+ * @offset:  Byte offset within the target buffer to begin writing.
+ * @size:    Number of bytes to write.
+ *
+ * This structure contains the parameters required for a write operation.
  */
 struct ebp_op_write_args {
     uint64_t buff_id;
@@ -137,13 +186,12 @@ struct ebp_op_write_args {
 
 
 /**
- * @brief Arguments for the internal EBA "alloc" operation.
+ * struct ebp_op_alloc_args - Arguments for the exposed EBA "alloc" operation.
+ * @size:       Number of bytes to allocate.
+ * @life_time:  Lifetime for the allocation (in a defined time unit).
+ * @buffer_id:  Field that the target node will fill with the allocated buffer's unique identifier.
  *
- * These parameters are provided by the remote node to request a buffer allocation.
- * @param size:       The number of bytes to allocate.
- * @param life_time:  The lifetime (in a defined unit) of the allocation.
- * @param buffer_id:  A field that the target node will fill in with the allocated buffer's
- *              unique identifier.
+ * These parameters are provided by a remote node to request a buffer allocation.
  */
 struct ebp_op_alloc_args {
     uint64_t size;      
@@ -153,15 +201,14 @@ struct ebp_op_alloc_args {
 
 
 /**
- * @brief Arguments for the internal EBA "read" operation.
+ * struct ebp_op_read_args - Arguments for the exposed EBA "read" operation.
+ * @dst_buffer_id: Identifier (virtual address) of the destination buffer where data will be copied.
+ * @src_buffer_id: Identifier (virtual address) of the source buffer to read from.
+ * @dst_offset:    Byte offset within the destination buffer.
+ * @src_offset:    Byte offset within the source buffer to start reading.
+ * @size:          Number of bytes to read.
  *
- * These parameters are provided by a remote node to request a read operation.
- *
- * @param dest_buffer_id: The identifier (virtual address) of the destination buffer where the data will be copied. ( distant node )
- * @param src_buffer_id:  The identifier (virtual address) of the source buffer to read from.
- * @param dst_offset:         The offset (in bytes) within the destination buffer.
- * @param src_offset:         The offset (in bytes) within the source buffer from where the read should start.
- * @param size:           The number of bytes to read.
+ * This structure specifies the parameters for a remote read operation.
  */
 struct ebp_op_read_args {
     uint64_t dst_buffer_id;
@@ -173,21 +220,23 @@ struct ebp_op_read_args {
 
 
 /**
- * struct ebp_header - Minimal EBA protocol header.
- * @param msgType: Indicates the type of EBA message.
+ * struct ebp_header - Minimal header for EBA protocol messages.
+ * @msgType: Indicates the type of EBA message (see enum EBP_MSG).
  *
- * This header is placed immediately after the Ethernet header.
+ * This header is placed immediately after the Ethernet header in an EBA frame.
+ * It allows nodes to determine the processing logic based on the message type.
  */
 struct ebp_header {
     uint8_t msgType;
 } __attribute__((packed));
 
 /**
- * struct eba_discover_req - Structure for the EBA Discover Request message.
- * @param msgType: Message type, should be set to EBP_MSG_DISCOVER.
- * @param mtu: The maximum transmission unit (2 bytes) of the sender.
+ * struct ebp_discover_req - Structure for an EBA Discover Request message.
+ * @header: Header containing the message type (should be set to EBP_MSG_DISCOVER).
+ * @mtu:    Maximum Transmission Unit of the sender.
  *
- * This message is broadcast by a node on startup to initiate neighbor discovery.
+ * This message is broadcast by a node during initialization to discover neighboring nodes.
+ * It can be exposed as an API also.
  */
 struct ebp_discover_req {
     struct ebp_header header;
@@ -195,10 +244,12 @@ struct ebp_discover_req {
 } __attribute__((packed));
 
 /**
- * struct ebp_discover_ack - Structure for the EBA Discover Acknowledgment message.
- * @param buffer_id: A 64-bits identifier of the buffer containing node information.
+ * struct ebp_discover_ack - Structure for an EBA Discover Acknowledgment message.
+ * @header:    Header containing the message type (should be set to EBP_MSG_DISCOVER_ACK).
+ * @buffer_id: Identifier of the buffer containing node information.
  *
- * The receiving node uses this message to respond to a discovery request.
+ * The receiving node sends this message in response to a discovery request to provide
+ * the sender with the necessary node information.
  */
 struct ebp_discover_ack {
     struct ebp_header header;
@@ -206,28 +257,31 @@ struct ebp_discover_ack {
 } __attribute__((packed));
 
 /**
- * struct ebp_invoke_req - Structure for the EBA Invoke Request message.
- * @param iid:  A 32-bit Invocation ID.
- * @param opid: A 32-bit Operation ID identifying the requested operation.
- * @param args_len: A 64-bit size of args.
- * @param args: A flexible array member for variable-length arguments.
+ * struct ebp_invoke_req - Structure for an EBA Invoke Request message.
+ * @header:   Header containing the message type.
+ * @iid:      32-bit Invocation ID.
+ * @opid:     32-bit Operation ID indicating the requested operation.
+ * @args_len: 64-bit length of the arguments blob.
+ * @args:     Flexible array member containing the raw arguments.
  *
- * This message is used to remotely invoke operations on another node.
+ * This message is used to remotely invoke an operation on another node.
+ * The variable-length arguments are parsed within the handler function.
  */
 struct ebp_invoke_req {
     struct ebp_header header;
     uint32_t iid;
     uint32_t opid;
     uint64_t args_len;
-    uint8_t args[];  /* Inline variable-length argument data */
+    uint8_t args[];  
 } __attribute__((packed));
 
 /**
- * @param ebp_invoke_ack - Structure for the EBA Invoke Acknowledgment message.
- * @param status: A status code indicating whether the invocation has been queued,
- *          completed, or encountered an error.
+ * struct ebp_invoke_ack - Structure for an EBA Invoke Acknowledgment message.
+ * @header: Header containing the message type (should be set to EBP_MSG_INVOKE_ACK).
+ * @status: Status code indicating the result of the invocation.
  *
- * This message acknowledges a previously received Invoke Request.
+ * This message is used to acknowledge that an Invoke Request has been processed,
+ * reflecting whether the operation was queued, completed, or failed.
  */
 struct ebp_invoke_ack {
     struct ebp_header header;
@@ -235,140 +289,165 @@ struct ebp_invoke_ack {
 } __attribute__((packed));
 
 
- /**
- * ebp_handle_packets - Callback function for processing received Ethernet frames.
- * @param skb: Pointer to the socket buffer containing the packet.
- * @param dev: The network device that received the packet.
- * @param pt: Pointer to the packet_type structure.
- * @param orig_dev: The original network device (if the packet was received via bridging or similar).
+/**
+ * ebp_handle_packets - Callback for processing received Ethernet frames.
+ * @skb:      Pointer to the socket buffer containing the received packet.
+ * @dev:      Network device that received the packet.
+ * @pt:       Pointer to the packet_type structure associated with the packet.
+ * @orig_dev: Original network device.
  *
- * This function is called by the networking stack for each received Ethernet packet
- * that matches the registered protocol.
+ * This function is registered with the networking stack to handle Ethernet frames
+ * with the EBP_ETHERTYPE protocol. It processes the received packet and returns an
+ * appropriate status code.
  *
- * @returns: NET_RX_SUCCESS if the packet was processed successfully,or an appropriate drop code on error.
+ * @return NET_RX_SUCCESS on successful processing, or an error code if processing fails.
  */
 int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
 
 /**
-* Registers our packet handler so that Ethernet frames with the specified protocol
-* are delivered to our callback.
-*
-* @returns: 0 on success or a negative error code on failure.
-*/
+ * ebp_init - Register the EBA packet handler with the Linux networking stack and all other struct arrays related to ebp.
+ * @return 0 on success, or a negative error code on failure.
+ */
 void ebp_init(void);
 
-/*
-* Unregisters the packet handler from the networking stack.
-*/
+/**
+ * ebp_exit - Unregister the EBA packet handler from the Linux networking stack.
+ */
 void ebp_exit(void);
 
 /**
- * @brief This function will handle the alloc operation when invoked remotely.
- * @param args Pointer to the invoke packet’s argument blob.
- * @param arg_len Length of the arguments.
- * @param mac dest mac address.
- * @returns 0 on success or 1 on fail.
+ * ebp_op_alloc - Handle a remote buffer allocation request.
+ * @args:    Pointer to the argument provided in the invoke packet.
+ * @arg_len: Length of the argument.
+ * @mac:     Destination MAC address of the invoking node.
+ *
+ * This function processes a remote allocation request by parsing the provided
+ * arguments and attempting to allocate a buffer accordingly.
+ *
+ * @return 0 on success, or 1 on failure.
  */
-int ebp_op_alloc_handler(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_alloc(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
- * @brief This function will handle the write operation when invoked remotely.
- * @param args Arguments from the invoke packet.
- * @param arg_len Length of the arguments.
- * @param mac dest mac address.
- * @returns 0 on succes 1 on fail.
+ * ebp_op_write - Handle a remote write operation request.
+ * @args:    Pointer to the argument from the invoke packet.
+ * @arg_len: Length of the argument data.
+ * @mac:     Destination MAC address of the invoking node.
+ *
+ * This function processes a request to write data to a remote buffer.
+ *
+ * @return 0 on success, or 1 on failure.
  */
-int ebp_op_write_handler(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
- * @brief This function will handle the read operation when invoked remotely.
- * @param args    Pointer to the invoke packet's argument.
- * @param arg_len Length of the arguments.
- * @param mac dest mac address.
- * @returns 0 on success or 1 on fail.
+ * ebp_op_read - Handle a remote read operation request.
+ * @args:    Pointer to the argument blob from the invoke packet.
+ * @arg_len: Length of the argument data.
+ * @mac:     Destination MAC address of the invoking node.
+ *
+ * This function processes a request to read data from a remote buffer.
+ *
+ * @return 0 on success, or 1 on failure.
  */
-int ebp_op_read_handler(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
- * @brief Registers an operation into the global op_entries array.
- * @param op_id The operation ID
- * @param fn    The function pointer implementing that ID.
- * @return 0 on success, negative on failure.
+ * ebp_register_op - Register an EBA operation in the global op_entries array.
+ * @op_id: Operation identifier.
+ * @fn:    Function pointer to the operation implementation.
+ *
+ * This function associates a given operation ID with its corresponding function in the
+ * op_entries array to allow for dynamic invocation.
+ *
+ * @return 0 on success, or a negative error code on failure.
  */
-int ebp_register_op(uint32_t op_id, ebp_op_handler_t fn);
+int ebp_register_op(uint32_t op_id, ebp_op_t fn);
 
 /**
- * @brief Finds and calls the handler in op_entries by op_id.
- * @param op_id    The ID to look for.
- * @param args     Pointer to raw argument data.
- * @param arg_len  Length of the argument data in bytes.
- * @param mac dest mac address.
- * @return The handler's return value, or a negative error if not found.
+ * ebp_invoke_op - Invoke a registered EBA operation.
+ * @op_id:   Operation identifier to look up.
+ * @args:    Pointer to the raw argument data.
+ * @arg_len: Length of the argument data in bytes.
+ * @mac:     Destination MAC address of the invoking node.
+ *
+ * This function searches for the operation associated with the provided op_id and
+ * calls the corresponding function.
+ *
+ * @return The return value of the invoked operation, or a negative error code if not found.
  */
 int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6]);
 
 /**
- * EBP_OPs_init - Registers the default EBA operations in the op_entries array.
+ * ebp_ops_init - Initialize and register the default EBA operations.
  *
- * Return: 0 on success, negative error code on partial success/failure.
+ * This function registers the default set of EBA operations (alloc, read, write)
+ * into the global op_entries array.
+ *
+ * @return 0 on success, or a negative error code on failure.
  */
 int ebp_ops_init(void);
 
 /**
- * @brief Utility function that prints available operation entries.
- * 
+ * print_op_entries - Display the current list of operation entries.
+ *
+ * This utility function prints the registered operation entries for debugging and verification.
  */
 void print_op_entries(void);
 
 /**
- * @brief This function requests a buffer allocation from distant node. 
- * @param size Size of the buffer.
- * @param life_time Life time of the buffer.
- * @param local_buff_id The local buffer that will store the requested buffer id.
- * @param mac Remote node address. ( todo modify it to node id )
- * @returns 0 on success and negative on fail.
+ * ebp_remote_alloc - Request a buffer allocation from a remote node.
+ * @size:          Size of the buffer to allocate.
+ * @life_time:     Lifetime of the buffer allocation.
+ * @local_buff_id: Local buffer identifier where the allocated buffer's ID will be stored.
+ * @mac:           MAC address of the remote node (to be modified to a node ID in the future).
+ *
+ * This function sends a remote allocation request to a distant node.
+ *
+ * @return 0 on success, or a negative error code on failure.
  */
 int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
 
 /**
- * @brief This function writes to a remote pre allocated buffer. 
- * @param buff_id Remote buffer id.
- * @param offset Offset.
- * @param size size of the payload.
- * @param mac Remote node address. ( todo modify it to node id )
- * @returns 0 on success and negative on fail.
+ * ebp_remote_write - Write data to a remote pre-allocated buffer.
+ * @buff_id: Remote buffer identifier.
+ * @offset:  Byte offset in the remote buffer where writing should begin.
+ * @size:    Size of the data payload to write.
+ * @payload: Pointer to the data payload.
+ * @mac:     MAC address of the remote node (to be modified to a node ID in the future).
+ *
+ * This function sends a request to write data to a remote node's buffer.
+ *
+ * @return 0 on success, or a negative error code on failure.
  */
 int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
 
-
-
 /**
- * @brief This function reads from a remote pre allocated buffer into a local pre allocated buffer. 
- * @param dst_buffer_id destination buffer id (local buffer).
- * @param src_buffer_id source buffer id (remote buffer).
- * @param dst_offset Offset on the destination buffer (local buffer ).
- * @param src_offset Offset on the source buffer ( remote buffer ).
- * @param size size of the data to read.
- * @param mac Remote node address. ( todo modify it to node id )
- * @returns 0 on success and negative on fail.
+ * ebp_remote_read - Read data from a remote pre-allocated buffer into a local buffer.
+ * @dst_buffer_id: Local buffer identifier where the data will be stored.
+ * @src_buffer_id: Remote buffer identifier to read data from.
+ * @dst_offset:    Byte offset within the local buffer.
+ * @src_offset:    Byte offset within the remote buffer where reading should start.
+ * @size:          Number of bytes to read.
+ * @mac:           MAC address of the remote node (to be modified to a node ID in the future).
+ *
+ * This function sends a request to read data from a remote node's buffer into a local buffer.
+ *
+ * @return 0 on success, or a negative error code on failure.
  */
 int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
 
-
-
 /**
- * @brief Register a new node in the global node_infos array.
- * @param mtu:        MTU (Maximum Transmission Unit) for this node.
- * @param mac:        MAC address of the node.
- * @param node_specs: Buffer id containing node specification details.
+ * ebp_register_node - Register a new node in the global node_infos array.
+ * @mtu:        Maximum Transmission Unit (MTU) for the node.
+ * @mac:        MAC address of the node.
+ * @node_specs: Identifier for the buffer containing node specification details.
  *
- * This function checks if the node identified by @param mac is already registered.
- * If not, it finds the first free slot in the node_infos array, populates it,
- * increments the global nodes_count, and returns 0. Returns -EEXIST if the node
- * (MAC) is already in the array, or -ENOSPC if there is no space to register
- * a new node.
+ * This function checks if a node with the specified MAC address is already registered.
+ * If not, it adds the node to the node_infos array, increments the global node count, and returns 0.
+ * If the node is already registered, it returns -EEXIST. If there is no space available, it returns -ENOSPC.
  *
- * Return: 0 on success, negative errno code on failure.
+ * @return 0 on success, or a negative error code on failure.
  */
 int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs);
 

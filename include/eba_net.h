@@ -1,3 +1,12 @@
+/**
+ * @file eba_net.h
+ * @brief EBA Networking Interface Header.
+ *
+ * This header defines the networking functions for the EBA system. It includes routines
+ * for sending raw Ethernet packets, retrieving and setting network interface MTU values, and
+ * building and transmitting various EBA protocol packets (e.g. Discover Request/ACK,
+ * Invoke Request/ACK). These interfaces facilitate EBA communication over the network.
+ */
 #ifndef EBA_NET
 #define EBA_NET
 #include <linux/module.h>
@@ -8,126 +17,137 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include "ebp.h"
+
 /**
  * send_raw_ethernet_packet - Send a raw Ethernet packet.
- * @param payload:    Pointer to the payload data to include in the packet.
- * @param payload_len: Length of the payload in bytes.
- * @param dst_mac:    Pointer to the destination MAC address (typically a 6-byte array).
- * @param protocol:   Ethernet protocol type (e.g., ETH_P_IP, ETH_P_ARP) in host byte order.
- * @param ifname:     Network interface name (e.g., "eth0") through which the packet should be transmitted.
+ * @payload:     Pointer to the payload data to include in the packet.
+ * @payload_len: Length of the payload in bytes.
+ * @dst_mac:     Pointer to the destination MAC address (typically a 6-byte array).
+ * @protocol:    Ethernet protocol type (e.g., ETH_P_IP, ETH_P_ARP) in host byte order.
+ * @ifname:      Network interface name (e.g., "eth0") through which the packet is transmitted.
  *
- * This function allocates an sk_buff, constructs the Ethernet header including setting the 
- * destination and source MAC addresses and the specified protocol, appends the provided payload, 
- * and then transmits the packet using the appropriate network device. On success, the packet is 
- * handed to the networking stack for transmission.
+ * This function allocates an sk_buff and constructs the Ethernet header by setting the
+ * destination and source MAC addresses as well as the specified protocol. It then appends
+ * the provided payload and transmits the packet using the appropriate network device.
  *
- * @returns: 0 on success, or a negative error code on failure.
+ * Return: 0 on success or a negative error code on failure.
  */
 int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,const unsigned char *dst_mac,int protocol,const char *ifname);
 
 /**
- * eba_net_get_max_mtu - Retrieves the maximum MTU supported by the specified network device.
- * @param ifname: The network device name (e.g., "eth0").
- * @param max_mtu: Pointer to an integer where the maximum MTU value will be stored.
+ * eba_net_get_max_mtu - Retrieve the maximum MTU supported by the specified network device.
+ * @ifname:  Network device name (e.g., "eth0").
+ * @max_mtu: Pointer to an integer where the maximum MTU will be stored.
  *
- * @returns 0 on success or a negative error code on failure.
+ * Return: 0 on success or a negative error code on failure.
  */
 int eba_net_get_max_mtu(const char *ifname, int *max_mtu);
 
 /**
- * eba_net_set_mtu - Changes the MTU of the specified network device.
- * @param ifname: The network device name (e.g., "eth0").
- * @param new_mtu: The new MTU value to set.
+ * eba_net_set_mtu - Change the MTU of the specified network device.
+ * @ifname:  Network device name (e.g., "eth0").
+ * @new_mtu: The new MTU value to set.
  *
- * @returns 0 on success or a negative error code on failure.
+ * Return: 0 on success or a negative error code on failure.
  */
 int eba_net_set_mtu(const char *ifname, int new_mtu);
 
-/** 
- * @brief Build a Discover Request packet.
- * @param mtu: the MTU value to send.
- * @param out_len: returns the total packet length. ( must be passed as a pointer init with value 0)
- * @returns Packet that needs to be freed 
+/**
+ * build_discover_req_packet - Build a Discover Request packet.
+ * @mtu:     MTU value to embed in the discover request.
+ * @out_len: Pointer to a variable that returns the total packet length.
+ *
+ * This function builds and returns a newly allocated Discover Request packet.
+ * The caller is responsible for freeing the allocated packet.
+ *
+ * Return: Pointer to the packet on success, or NULL on failure.
  */
 char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len);
 
 /**
- * @brief Build a Discover-Ack packet.
- * @param buffer_id: the 64-bit identifier.
- * @param out_len: returns the packet length. ( must be passed as a pointer init with value 0)
- * @returns Packet that needs to be freed 
+ * build_discover_ack_packet - Build a Discover Acknowledgment packet.
+ * @buffer_id: 64-bit identifier to embed in the ACK packet.
+ * @out_len:   Pointer to a variable that returns the total packet length.
+ *
+ * This function builds and returns a newly allocated Discover-Ack packet.
+ * The caller is responsible for freeing the packet.
+ *
+ * Return: Pointer to the allocated packet on success, or NULL on failure.
  */
 char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len);
 
 /**
- * @brief Build an Invoke Request packet.
+ * build_invoke_req_packet - Build an Invoke Request packet.
+ * @iid:         32-bit Invocation ID.
+ * @opid:        32-bit Operation ID (e.g., EBP_OP_WRITE, EBP_OP_READ).
+ * @args:        Pointer to the invoke argument data.
+ * @args_len:    Length (in bytes) of the invoke argument data.
+ * @payload:     Pointer to additional payload data appended after the arguments.
+ * @payload_len: Length (in bytes) of the payload data.
+ * @out_len:     Pointer to a variable that returns the total packet length.
  *
- * This function builds an invoke request packet with the following layout:
+ * The packet is built with the following layout:
  *
- *   [ebp_invoke_req header] | [args data] | [payload data]
+ *    [ebp_invoke_req header] | [args data] | [payload data]
  *
- * The fixed header (of type 'struct ebp_invoke_req') is followed immediately by
- * the 'args' section, and then by the 'payload' section.
+ * The caller is responsible for freeing the returned packet.
  *
- * @param iid:      32-bit Invocation ID.
- * @param opid:     32-bit Operation ID.
- * @param args:     Pointer to the invoke argument data.
- * @param args_len: Length (in bytes) of the invoke argument data.
- * @param payload:  Pointer to the additional payload data.
- * @param payload_len: Length (in bytes) of the payload data.
- * @param out_len:  Returns the total packet length. (Must be passed as a pointer initialized to 0)
- *
- * @returns A pointer to the allocated packet. The caller is responsible for freeing it.
+ * Return: Pointer to the allocated packet on success, or NULL on failure.
  */
+
 char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
     const char *args, uint64_t args_len,
     const char *payload, uint64_t payload_len,
     uint64_t *out_len);
 
 /**
- * @brief Build an Invoke Request packet.
- * @param status: 8-bit status code.(enum INVOKE_STATUS)
- * @param out_len: the packet length. ( must be passed as a pointer init with value 0)
- * @returns Packet that needs to be freed !.
+ * build_invoke_ack_packet - Build an Invoke Acknowledgment packet.
+ * @status:  8-bit status code (enum INVOKE_STATUS) to embed in the ACK.
+ * @out_len: Pointer to a variable that returns the total packet length.
+ *
+ * This function builds and returns a newly allocated Invoke-Ack packet. The
+ * caller is responsible for freeing the allocated packet.
+ *
+ * Return: Pointer to the allocated packet on success, or NULL on failure.
  */
 char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len);
 
 /**
- * send_discover_req_packet() - Build & send an EBP_MSG_DISCOVER packet
- * @param mtu:         MTU to embed in the discover request
- * @param dest_mac:    MAC address of the destination node
- * @param ifname:      Name of the outgoing interface (e.g. "enp0s8")
+ * send_discover_req_packet - Build and send an EBP_MSG_DISCOVER packet.
+ * @mtu:      MTU value to embed in the discover request.
+ * @dest_mac: Destination node's MAC address.
+ * @ifname:   Outgoing interface name (e.g., "enp0s8").
  *
- * Returns: 0 on success, negative errno otherwise
+ * Return: 0 on success or a negative error code on failure.
  */
 int send_discover_req_packet(uint16_t mtu, const unsigned char dest_mac[6], const char *ifname);
 
 /**
- * send_discover_ack_packet() - Build & send an EBP_MSG_DISCOVER_ACK packet
- * @param buffer_id:   64-bit buffer_id to embed in the ACK
- * @param dest_mac:    MAC address of the destination node
- * @param ifname:      Name of the outgoing interface
+ * send_discover_ack_packet - Build and send an EBP_MSG_DISCOVER_ACK packet.
+ * @buffer_id: 64-bit buffer identifier to embed in the ACK.
+ * @dest_mac:  Destination node's MAC address.
+ * @ifname:    Outgoing interface name.
  *
- * Returns: 0 on success, negative errno otherwise
+ * Return: 0 on success or a negative error code on failure.
  */
 int send_discover_ack_packet(uint64_t buffer_id, const unsigned char dest_mac[6], const char *ifname);
 
 /**
- * send_invoke_req_packet() - Build & send a generic EBP_MSG_INVOKE request packet
- * @param iid:         Invocation ID (caller-defined)
- * @param opid:        Operation ID (e.g., EBP_OP_WRITE, EBP_OP_READ, etc.)
- * @param args:        Pointer to the arguments buffer
- * @param args_len:    Length of the arguments buffer
- * @param payload:     Pointer to optional payload data appended after the args
- * @param payload_len: Length of the optional payload
- * @param dest_mac:    Destination MAC address
- * @param ifname:      Outgoing interface name
+ * send_invoke_req_packet - Build and send an EBP_MSG_INVOKE request packet.
+ * @iid:         Invocation ID (caller-defined).
+ * @opid:        Operation ID (e.g., EBP_OP_WRITE, EBP_OP_READ).
+ * @args:        Pointer to the arguments buffer.
+ * @args_len:    Length of the arguments buffer.
+ * @payload:     Pointer to optional payload data appended after the arguments.
+ * @payload_len: Length of the optional payload.
+ * @dest_mac:    Destination node's MAC address.
+ * @ifname:      Outgoing interface name.
  *
- * Returns: 0 on success, negative errno otherwise
+ * This is a generic sender for an Invoke Request. Specialized helper functions,
+ * such as those implementing remote allocations or writes, may also call
+ * build_invoke_req_packet() directly.
  *
- * Note: This is a generic sender for an Invoke Request. Specialized helper
- *       functions (like ebp_remote_alloc, ebp_remote_write, etc.) may also
- *       call build_invoke_req_packet() directly as done in the code above.
+ * Return: 0 on success or a negative error code on failure.
  */
 int send_invoke_req_packet(uint32_t iid, uint32_t opid,
     const char *args, uint64_t args_len,
@@ -138,12 +158,12 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
 
 
 /**
- * send_invoke_ack_packet() - Build & send an EBP_MSG_INVOKE_ACK response packet
- * @status:      Status code to embed in the ACK
- * @dest_mac:    Destination MAC address
- * @ifname:      Outgoing interface name
+ * send_invoke_ack_packet - Build and send an EBP_MSG_INVOKE_ACK response packet.
+ * @status:   Status code to embed in the ACK.
+ * @dest_mac: Destination node's MAC address.
+ * @ifname:   Outgoing interface name.
  *
- * Returns: 0 on success, negative errno otherwise
+ * Return: 0 on success or a negative error code on failure.
  */
 int send_invoke_ack_packet(uint8_t status,
                            const unsigned char dest_mac[6],
