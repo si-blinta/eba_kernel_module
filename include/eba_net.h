@@ -37,11 +37,17 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
 /**
  * eba_net_get_max_mtu - Retrieve the maximum MTU supported by the specified network device.
  * @ifname:  Network device name (e.g., "eth0").
- * @max_mtu: Pointer to an integer where the maximum MTU will be stored.
- *
- * Return: 0 on success or a negative error code on failure.
+ * Return: max mtu on success or a negative error code on failure.
  */
-int eba_net_get_max_mtu(const char *ifname, int *max_mtu);
+int eba_net_get_max_mtu(const char *ifname);
+
+/**
+ * eba_net_get_current_mtu - Retrieve the current MTU of the specified network device.
+ * @ifname:  Network device name (e.g., "eth0").
+ *
+ * Return: current mtu on success or a negative error code on failure.
+ */
+int eba_net_get_current_mtu(const char *ifname);
 
 /**
  * eba_net_set_mtu - Change the MTU of the specified network device.

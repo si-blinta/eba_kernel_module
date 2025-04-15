@@ -3,7 +3,7 @@
 #include <unistd.h>
 int main(int argc, char *argv[])
  {
-    uint64_t id1 = eba_alloc(512,10,0);
+    /*uint64_t id1 = eba_alloc(512,10,0);
     const char mac[6]={0x00,0x00,0x00,0x00,0x00,0x02};
     eba_remote_alloc(512,100,id1,mac);
     uint64_t remote_id = 0;
@@ -23,6 +23,15 @@ int main(int argc, char *argv[])
     }
     printf("read:\n");
     for(int i = 0 ; i < sizeof("hello friend"); i++)
-      printf("%c",c[i]);
- }
+      printf("%c",c[i]);*/
+   /*for(int i = 0 ; i< 10 ; i++)
+   {
+      sleep(1);
+      eba_discover();
+   }*/
+  eba_export_node_specs();
+
+ 
+ 
+   }
  

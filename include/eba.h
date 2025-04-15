@@ -64,8 +64,25 @@
  */
 #define EBA_IOCTL_REMOTE_READ _IOWR(EBA_IOC_MAGIC, 6, struct eba_remote_read)
 
+
+/**
+ * EBA_IOCTL_DISCOVER - IOCTL command to trigger a node discovery.
+ *
+ * This command does not require an argument and simply invokes the
+ * ebp_discover() function to broadcast a discovery request.
+ */
+#define EBA_IOCTL_DISCOVER _IO(EBA_IOC_MAGIC, 7)
+
+/**
+ * EBA_IOCTL_EXPORT_NODE_SPECS - IOCTL command to export all node_specs buffers to files.
+ *
+ * This command triggers the eba_export_node_specs() function, which dumps each node's
+ * node_specs buffer to a corresponding file.
+ */
+#define EBA_IOCTL_EXPORT_NODE_SPECS _IO(EBA_IOC_MAGIC, 8)
+
 /** Maximum number of EBA IOCTL commands supported. */
-#define EBA_IOC_MAXNR 6
+#define EBA_IOC_MAXNR 8
 
 /* Logging Macros */
 

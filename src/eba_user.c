@@ -194,3 +194,39 @@ int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     }
     return 0;
 }
+
+int eba_discover(void)
+{
+    int fd, ret;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return 1;
+        
+    ret = ioctl(fd, EBA_IOCTL_DISCOVER, NULL);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_DISCOVER)");
+        return ret;
+    }
+
+    return 0;
+}
+
+int eba_export_node_specs(void)
+{
+    int fd, ret;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+
+    ret = ioctl(fd, EBA_IOCTL_EXPORT_NODE_SPECS, NULL);
+    close(fd);
+
+    if (ret < 0)
+        perror("ioctl(EBA_IOCTL_EXPORT_NODE_SPECS)");
+
+    return ret;
+}

@@ -52,7 +52,7 @@ remove:
 	@lsmod | grep eba || echo "Module not loaded."
 	
 # Target to build the user-space library from eba_user.c and put it in lib/
-lib:
+lib: 
 	@echo "Building user-space API library..."
 	@mkdir -p lib
 	$(CC) -O2 -Wall -fPIC -I$(PWD)/include -c src/eba_user.c -o lib/eba_user.o

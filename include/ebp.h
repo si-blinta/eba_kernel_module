@@ -528,5 +528,5 @@ uint64_t ebp_get_specs_from_node_id(int node_id);
  */
 int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, const char *payload);
 
-void discover(void);
+int ebp_discover(void);
 #endif

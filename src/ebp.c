@@ -175,7 +175,7 @@ void ebp_init(void)
     invoke_tracker_array_init();
     op_entry_array_init();
     ebp_ops_init();
-    local_specs = eba_internals_malloc(4096,0);
+    local_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE,0);
     print_node_infos();
 }
 void ebp_exit(void)
@@ -555,8 +555,14 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
     return 0;
 }
 
-void discover(void)
+int ebp_discover(void)
 {
     char mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
-    send_discover_req_packet(69,mac,"enp0s8");
+    int mtu = eba_net_get_current_mtu("enp0s8");
+    if(mtu < 0)
+    {
+        EBA_ERR("ebp_discover: eba_net_get_current_mtu failed");
+        return -1;
+    }
+    return send_discover_req_packet((uint16_t)mtu,mac,"enp0s8");
 }

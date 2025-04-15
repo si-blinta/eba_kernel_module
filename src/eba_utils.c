@@ -176,13 +176,13 @@ int eba_export_node_specs(void)
 
             if (!found) {
                 EBA_ERR("Node %d has node_specs=0x%llx, but no matching buffer\n",
-                        i, buff_id);
+                        node_infos[i].id, buff_id);
                 continue;
             }
 
             /* Build the path like "/var/lib/eba/node_2_specs" */
             snprintf(filepath, sizeof(filepath),
-                     "/var/lib/eba/node_%d_specs", i);
+                     "/var/lib/eba/node_%d_specs", node_infos[i].id);
 
             /* Dump the entire buffer to that file */
             eba_utils_buf_to_file(buff_id, buf->size, filepath);

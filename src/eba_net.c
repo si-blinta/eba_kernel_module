@@ -62,11 +62,11 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
 }
 
 
-int eba_net_get_max_mtu(const char *ifname, int *max_mtu)
+int eba_net_get_max_mtu(const char *ifname)
 {
     struct net_device *dev;
 
-    if (!ifname || !max_mtu)
+    if (!ifname)
         return -EINVAL;
 
     /* Look up the network device by name in the initial network namespace */
@@ -76,13 +76,32 @@ int eba_net_get_max_mtu(const char *ifname, int *max_mtu)
         return -ENODEV;
     }
 
-    /* Some drivers set max_mtu in the net_device structure */
-    *max_mtu = dev->max_mtu;
     EBA_INFO("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
             dev->name, dev->mtu, dev->max_mtu);
 
     dev_put(dev);
-    return 0;
+    return dev->max_mtu;
+}
+
+int eba_net_get_current_mtu(const char *ifname)
+{
+    struct net_device *dev;
+
+    if (!ifname)
+        return -EINVAL;
+
+    /* Look up the network device by name in the initial network namespace */
+    dev = dev_get_by_name(&init_net, ifname);
+    if (!dev) {
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
+        return -ENODEV;
+    }
+
+    EBA_INFO("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
+            dev->name, dev->mtu, dev->max_mtu);
+
+    dev_put(dev);
+    return dev->mtu;
 }
 
 int eba_net_set_mtu(const char *ifname, int new_mtu)

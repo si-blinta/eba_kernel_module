@@ -84,4 +84,35 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  */
 int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
 
+/**
+ * eba_discover - Initiate remote node discovery from user space.
+ *
+ * This function issues an IOCTL command (EBA_IOCTL_DISCOVER) to the EBA driver,
+ * causing the kernel module to broadcast a Discover Request packet.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int eba_discover(void);
+
+/**
+ * eba_export_node_specs - Exports each node's node_specs buffer to a file.
+ *
+ * This function iterates through the global node_infos array and, for each valid node,
+ * locates the corresponding memory buffer for node_specs and dumps its content to a file
+ * with a name like "/var/lib/eba/node_<node_id>_specs".
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int eba_export_node_specs(void);
+
+/**
+ * eba_export_node_specs - Export node specification buffers to files.
+ *
+ * This function issues an IOCTL command (EBA_IOCTL_EXPORT_NODE_SPECS) to the EBA driver,
+ * causing the kernel module to dump each registered node's node_specs buffer to a file.
+ *
+ * @return 0 on success, or a negative error code on failure.
+ */
+int eba_export_node_specs(void);
+
 #endif
