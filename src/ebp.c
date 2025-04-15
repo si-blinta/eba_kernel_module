@@ -62,32 +62,61 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             EBA_INFO("ebp_handle_packets: Discover Request: MTU = %u\n", ntohs(disc->mtu));
             //allocate node specs buffer
             void* node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE,EBP_NODE_SPECS_MAX_LIFE_TIME);
+            if (!node_specs) {
+                EBA_ERR("ebp_handle_packets: Failed to allocate node_specs buffer\n");
+                kfree_skb(skb);
+                return NET_RX_DROP;
+            }
             //register the new node
             //handle errors lol 
             int ret = ebp_register_node(ntohs(disc->mtu),eth->h_source,(uint64_t)node_specs);
             if(ret == -EEXIST)
             {
-                EBA_ERR("ebp_handle_packets: node already exists : todo resend the node_specs \n");
-                //kfree_skb(skb);
-                //eba_internals_free(node_specs);
-                //return NET_RX_DROP;
-            }
-            else if ( ret == -ENOSPC)
-            {
-                EBA_ERR("ebp_handle_packets: register node failed\n");
-                kfree_skb(skb);
+                /*
+                * The node is already registered. 
+                * In that case, we do NOT want to keep the newly allocated buffer. 
+                * Instead, find the old node_specs from node_infos, and send the ACK with that pointer.
+                */
                 eba_internals_free(node_specs);
+                /* Lookup existing node_specs for this MAC */
+                uint64_t existing_specs = ebp_get_specs_from_node_mac(eth->h_source);
+                if (!existing_specs) {
+                    EBA_ERR("ebp_handle_packets: Node was said to exist, but no specs found. MAC=%pM\n", eth->h_source);
+                    /* 
+                     * Possibly return an error or continue, 
+                     * but there's no valid node_specs to send in the ACK.
+                     */
+                    kfree_skb(skb);
+                    return NET_RX_DROP;
+                }
+                /* Send the Discover ACK using the previously stored node_specs */
+                ret = send_discover_ack_packet(existing_specs, eth->h_source, "enp0s8");
+                if (ret < 0) {
+                    EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
+                    kfree_skb(skb);
+                    return NET_RX_DROP;
+                }
+            }
+            else if (ret < 0) {
+                /* Some other error from ebp_register_node */
+                EBA_ERR("ebp_handle_packets: register node failed with error %d\n", ret);
+                eba_internals_free(node_specs);
+                kfree_skb(skb);
                 return NET_RX_DROP;
             }
-            //send the discover ack with the allocated buffer to enable remote node to share its data.
-            ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
-            if(ret < 0)
+            else
             {
-                EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
-                kfree_skb(skb);
-                eba_internals_free(node_specs);
-                return NET_RX_DROP;
+                 /* New node successfully registered, so send an ACK using the newly allocated buffer */
+                ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
+                if(ret < 0)
+                {
+                    EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
+                    kfree_skb(skb);
+                    eba_internals_free(node_specs);
+                    return NET_RX_DROP;
+                }
             }
+            
         }
         break;
     case EBP_MSG_DISCOVER_ACK: /* 0x03 */
@@ -102,6 +131,13 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
             uint64_t buff_id = be64_to_cpu(ack->buffer_id);
             EBA_INFO("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
+            int node_id = ebp_get_node_id_from_mac(eth->h_source);
+            if(node_id < 0 )
+            {
+                EBA_ERR("ebp_handle_packets: node does not exist\n");
+                kfree_skb(skb);
+                return NET_RX_DROP;
+            }
             int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
             if (rc < 0) {
                 EBA_ERR("ebp_handle_packets: Failed to read node_local.eba, ret=%d\n", rc);
@@ -109,8 +145,7 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
                 return NET_RX_DROP;
             } else {
                 EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)4096);
-                
-                rc = ebp_remote_write_mtu(ebp_get_node_id_from_mac(eth->h_source),buff_id,(uint64_t)4096,(char*) local_specs);
+                rc = ebp_remote_write_mtu(node_id,buff_id,(uint64_t)4096,(char*) local_specs);
                 if (rc < 0) {
                     EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write_mtu() node_local.eba content, ret=%d\n", rc);
                     kfree_skb(skb);
@@ -434,8 +469,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     
     /* First, check if a node with this MAC already exists. */
     for (i = 0; i < MAX_NODE_COUNT; i++) {
-        if (node_infos[i].id != INVALID_NODE_ID &&
-            memcmp(node_infos[i].mac, mac, 6) == 0)
+        if (node_infos[i].id != INVALID_NODE_ID && memcmp(node_infos[i].mac, mac, 6) == 0)
         {
             /* Node already registered, return success (no error). */
             EBA_INFO("ebp_register_node: Node with MAC %pM already exists, skipping registration.\n",mac);
@@ -515,20 +549,29 @@ uint64_t ebp_get_specs_from_node_id(int node_id)
     return 0;  /* Not found */
 }
 
+uint64_t ebp_get_specs_from_node_mac(const char* mac_address)
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (strcmp(node_infos[i].mac, mac_address) == 0) {
+            return node_infos[i].node_specs;
+        }
+    }
+    return 0;  /* Not found */
+}
+
 int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, const char *payload)
 {
     int ret = 0;
     uint16_t mtu;
     uint64_t offset = 0;
     const unsigned char *dest_mac;
-
-    /* Retrieve the MTU for the specified node */
-    mtu = ebp_get_mtu_from_node_id(node_id);
+    /* Retrieve the MTU for the specified node and substract the header size xd xd xd xd TODO */
+    mtu = ebp_get_mtu_from_node_id(node_id) - ( sizeof(struct ebp_invoke_req) - 4);
     if (mtu == 0) {
         EBA_ERR("ebp_remote_write_mtu: Invalid MTU retrieved for node %d\n", node_id);
         return -EINVAL;
     }
-
     /* Get the destination MAC address for the node */
     dest_mac = ebp_get_mac_from_node_id(node_id);
     if (!dest_mac) {

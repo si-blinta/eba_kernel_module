@@ -139,7 +139,7 @@ int eba_utils_buf_to_file(uint64_t buff_id, uint64_t size, const char *filepath)
     EBA_INFO("Wrote %llu bytes from EBA buffer 0x%llx to file %s\n",
              size, buff_id, filepath);
     ret = 0; /* success */
-
+    print_hex_dump(KERN_INFO, "EBA BUF DUMP: ", DUMP_PREFIX_OFFSET, 16, 1, kbuf, size, true);
 out_close:
     if (filp)
         filp_close(filp, NULL);

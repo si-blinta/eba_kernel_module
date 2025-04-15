@@ -24,14 +24,14 @@ int main(int argc, char *argv[])
     printf("read:\n");
     for(int i = 0 ; i < sizeof("hello friend"); i++)
       printf("%c",c[i]);*/
-   /*for(int i = 0 ; i< 10 ; i++)
+   /*for(int i = 0 ; i< 5 ; i++)
    {
       sleep(1);
       eba_discover();
    }*/
-  eba_export_node_specs();
-
- 
+   //eba_export_node_specs();
+  
+   eba_discover();
  
    }
  

@@ -30,6 +30,8 @@
 /** Maximum number of operation entries allowed in the op_entries array. */
 #define MAX_OP_COUNT      5
 
+#define MINIMAL_MTU 512
+
 /**
  * enum INVOKE_STATUS - Possible statuses for an invocation.
  * @INVOKE_QUEUED:      Invocation is queued for processing.
@@ -512,6 +514,16 @@ uint16_t ebp_get_mtu_from_node_id(int node_id);
  */
 uint64_t ebp_get_specs_from_node_id(int node_id);
 
+/**
+ * ebp_get_specs_from_node_mac - Return the node_specs field for a node ID
+ * @mac_address:  mac to look up
+ *
+ * Searches node_infos for the entry whose .mac matches @mac_address. If found,
+ * returns its node_specs field. Otherwise, returns 0.
+ *
+ * Return: node_specs (uint64_t) on success, or 0 if not found
+ */
+uint64_t ebp_get_specs_from_node_mac(const char* mac_address);
 
 /**
  * ebp_remote_write_mtu - Write a remote buffer in segments not exceeding the node's MTU.
