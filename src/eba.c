@@ -112,11 +112,19 @@
 /* Timer for checking expired buffers */
 static struct timer_list eba_timer;
 
+static struct timer_list eba_timer_discover;
 /* Timer callback function */
-static void eba_timer_callback(struct timer_list *t)
+static void eba_timer_callback_cleanup_buffer(struct timer_list *t)
 {
     eba_check_expired_buffers();
     mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER)); // reschedule for next second
+}
+
+/* Timer callback function */
+static void eba_timer_callback_discover(struct timer_list *t)
+{
+    discover();
+    mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(1000)); // reschedule for next second
 }
 
  static int eba_open(struct inode *inode, struct file *file)
@@ -173,9 +181,11 @@ static void eba_timer_callback(struct timer_list *t)
           goto err_mempool;
      }
      // Initialize the timer:
-     timer_setup(&eba_timer, eba_timer_callback, 0);
+     timer_setup(&eba_timer, eba_timer_callback_cleanup_buffer, 0);
+     timer_setup(&eba_timer_discover, eba_timer_callback_discover, 0);
      // Schedule the timer for the first time
      mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
+     mod_timer(&eba_timer_discover, jiffies + msecs_to_jiffies(1000));
      
      ebp_init();
      EBA_INFO("Module loaded\n");
@@ -196,6 +206,7 @@ static void eba_timer_callback(struct timer_list *t)
  static void __exit eba_module_exit(void)
  {
      del_timer_sync(&eba_timer);
+     del_timer_sync(&eba_timer_discover);
      eba_internals_mempool_free();
      device_destroy(eba_class, eba_devno);
      class_destroy(eba_class);

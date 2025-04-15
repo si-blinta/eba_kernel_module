@@ -176,8 +176,6 @@ void ebp_init(void)
     op_entry_array_init();
     ebp_ops_init();
     local_specs = eba_internals_malloc(4096,0);
-    char mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
-    send_discover_req_packet(69,mac,"enp0s8");
     print_node_infos();
 }
 void ebp_exit(void)
@@ -555,4 +553,10 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
     }
 
     return 0;
+}
+
+void discover(void)
+{
+    char mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
+    send_discover_req_packet(69,mac,"enp0s8");
 }
