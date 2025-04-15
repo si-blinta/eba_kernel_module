@@ -80,14 +80,14 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
                 return NET_RX_DROP;
             }
             //send the discover ack with the allocated buffer to enable remote node to share its data.
-            /*int ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
+            ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
             if(ret < 0)
             {
                 EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
                 kfree_skb(skb);
                 eba_internals_free(node_specs);
                 return NET_RX_DROP;
-            }*/
+            }
         }
         break;
     case EBP_MSG_DISCOVER_ACK: /* 0x03 */
@@ -102,25 +102,21 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
             uint64_t buff_id = be64_to_cpu(ack->buffer_id);
             EBA_INFO("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
-            //todo handle mtu
-            /*int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
+            int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
             if (rc < 0) {
                 EBA_ERR("ebp_handle_packets: Failed to read node_local.eba, ret=%d\n", rc);
                 kfree_skb(skb);
                 return NET_RX_DROP;
             } else {
                 EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)4096);
-                uint64_t offset = 0;
-                for(int i = 0 ; i < 4 ; i++)
-                {
-                    rc = ebp_remote_write(buff_id, offset, (uint64_t)1000, (char*) (local_specs) + offset, eth->h_source);
-                    if (rc < 0) {
-                        EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
-                    }
-                    offset+= 1000;
+                
+                rc = ebp_remote_write_mtu(ebp_get_node_id_from_mac(eth->h_source),buff_id,(uint64_t)4096,(char*) local_specs);
+                if (rc < 0) {
+                    EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write_mtu() node_local.eba content, ret=%d\n", rc);
+                    kfree_skb(skb);
+                    return NET_RX_DROP;
                 }
             }
-        */
         }
         break;
     case EBP_MSG_INVOKE: /* 0x02 */
@@ -476,5 +472,87 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     return 0;
 }
 
+int ebp_get_node_id_from_mac(const char mac[6])
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id != INVALID_NODE_ID &&
+            memcmp(node_infos[i].mac, mac, ETH_ALEN) == 0) {
+            return node_infos[i].id;
+        }
+    }
+    return -1;  /* Not found */
+}
 
+const unsigned char *ebp_get_mac_from_node_id(int node_id)
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id == node_id) {
+            return node_infos[i].mac;
+        }
+    }
+    return NULL;  /* Not found */
+}
 
+uint16_t ebp_get_mtu_from_node_id(int node_id)
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id == node_id) {
+            return node_infos[i].mtu;
+        }
+    }
+    return 0;  /* Not found */
+}
+
+uint64_t ebp_get_specs_from_node_id(int node_id)
+{
+    int i;
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id == node_id) {
+            return node_infos[i].node_specs;
+        }
+    }
+    return 0;  /* Not found */
+}
+
+int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, const char *payload)
+{
+    int ret = 0;
+    uint16_t mtu;
+    uint64_t offset = 0;
+    const unsigned char *dest_mac;
+
+    /* Retrieve the MTU for the specified node */
+    mtu = ebp_get_mtu_from_node_id(node_id);
+    if (mtu == 0) {
+        EBA_ERR("ebp_remote_write_mtu: Invalid MTU retrieved for node %d\n", node_id);
+        return -EINVAL;
+    }
+
+    /* Get the destination MAC address for the node */
+    dest_mac = ebp_get_mac_from_node_id(node_id);
+    if (!dest_mac) {
+        EBA_ERR("ebp_remote_write_mtu: No MAC found for node %d\n", node_id);
+        return -EINVAL;
+    }
+
+    /* Write the payload in segments, each no larger than the node's MTU */
+    while (offset < total_size) {
+        uint64_t segment_size = total_size - offset;
+
+        if (segment_size > mtu)
+            segment_size = mtu;
+
+        ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, dest_mac);
+        if (ret < 0) {
+            EBA_ERR("ebp_remote_write_mtu: ebp_remote_write failed at offset %llu, ret=%d\n", offset, ret);
+            return ret;
+        }
+
+        offset += segment_size;
+    }
+
+    return 0;
+}

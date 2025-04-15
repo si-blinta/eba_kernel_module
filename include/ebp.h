@@ -462,5 +462,69 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs);
         Handle MTU for each operation, make sure it uses the min(local mtu,remote mtu). 
         TODO finish the discovery
 */
+
+/**
+ * print_node_infos - prints the node info array.
+ */
 void print_node_infos(void);
+
+/**
+ * ebp_get_node_id_from_mac - Look up a node ID by its MAC address
+ * @mac:  Pointer to a 6-byte MAC address array
+ *
+ * Searches the global node_infos array for a node whose MAC address matches
+ * @mac. If found, returns its node ID. Otherwise, returns -1.
+ *
+ * Return: Node ID on success, or -1 if not found
+ */
+int ebp_get_node_id_from_mac(const char mac[6]);
+
+/**
+ * ebp_get_mac_from_node_id - Retrieve MAC address based on node ID
+ * @node_id:  Node ID to search for
+ *
+ * Searches node_infos for the entry whose .id matches @node_id. If found,
+ * returns a pointer to the 6-byte MAC address. Otherwise, returns NULL.
+ *
+ * Return: Pointer to MAC address on success, or NULL if not found
+ */
+const unsigned char *ebp_get_mac_from_node_id(int node_id);
+
+/**
+ * ebp_get_mtu_from_node_id - Fetch MTU for a given node ID
+ * @node_id:  Node ID to look up
+ *
+ * Searches node_infos for the entry whose .id matches @node_id. If found,
+ * returns its MTU. Otherwise, returns 0.
+ *
+ * Return: MTU (uint16_t) on success, or 0 if not found
+ */
+uint16_t ebp_get_mtu_from_node_id(int node_id);
+
+/**
+ * ebp_get_specs_from_node_id - Return the node_specs field for a node ID
+ * @node_id:  Node ID to look up
+ *
+ * Searches node_infos for the entry whose .id matches @node_id. If found,
+ * returns its node_specs field. Otherwise, returns 0.
+ *
+ * Return: node_specs (uint64_t) on success, or 0 if not found
+ */
+uint64_t ebp_get_specs_from_node_id(int node_id);
+
+
+/**
+ * ebp_remote_write_mtu - Write a remote buffer in segments not exceeding the node's MTU.
+ * @node_id:    The ID of the remote node.
+ * @buff_id:    The remote buffer identifier to write into.
+ * @total_size: The total number of bytes of the data to be written.
+ * @payload:    Pointer to the data to be written.
+ *
+ * This function retrieves the MTU for the node identified by @node_id, and then
+ * breaks the provided payload into segments of size at most equal to the MTU.
+ * For each segment, it invokes ebp_remote_write() with the current offset.
+ *
+ * Returns 0 on success or a negative error code on failure.
+ */
+int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, const char *payload);
 #endif
