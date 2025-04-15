@@ -167,6 +167,8 @@ void ebp_init(void)
     op_entry_array_init();
     ebp_ops_init();
     local_specs = eba_internals_malloc(4096,0);
+    char mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
+    send_discover_req_packet(69,mac,"enp0s8");
 }
 void ebp_exit(void)
 {
