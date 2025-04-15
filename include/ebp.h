@@ -29,7 +29,7 @@
 #define MAX_INVOKE_COUNT  20
 /** Maximum number of operation entries allowed in the op_entries array. */
 #define MAX_OP_COUNT      5
-
+#define MTU_OVERHEAD 38
 #define MINIMAL_MTU 512
 
 /**
@@ -541,4 +541,18 @@ uint64_t ebp_get_specs_from_node_mac(const char* mac_address);
 int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, const char *payload);
 
 int ebp_discover(void);
+/**
+ * ebp_remote_write_fixed_mtu() - Send data in chunks constrained by a given MTU.
+ * @mac:         The remote node's MAC address (does not need to be registered).
+ * @forced_mtu:  The caller-specified MTU to use for chunking.
+ * @buff_id:     The remote buffer identifier to write into.
+ * @total_size:  The total number of bytes in @payload.
+ * @payload:     Pointer to the data to send.
+ *
+ * This function does not register the node nor look up any existing MTU in
+ * node_infos[].  It simply uses @forced_mtu as the maximum segment size.
+ *
+ * Returns 0 on success, or a negative error code if any chunk fails.
+ */
+int ebp_remote_write_fixed_mtu(const unsigned char *mac,uint16_t forced_mtu,uint64_t buff_id,uint64_t total_size,const char *payload);
 #endif

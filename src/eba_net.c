@@ -49,6 +49,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
         memcpy(payload_ptr, payload, payload_len);
     }
     /* Queue the packet for transmission */
+    EBA_INFO("TX total: %lu (ETH=%d, payload=%lu)\n", packet_len, ETH_HLEN, payload_len);
     ret = dev_queue_xmit(skb);
     if (ret < 0) {
         EBA_ERR("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
