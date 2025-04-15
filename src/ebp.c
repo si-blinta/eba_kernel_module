@@ -72,13 +72,13 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
                 return NET_RX_DROP;
             }
             //send the discover ack with the allocated buffer to enable remote node to share its data.
-            ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
+            /*int ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,"enp0s8");
             if(ret < 0)
             {
                 EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
                 kfree_skb(skb);
                 return NET_RX_DROP;
-            }
+            }*/
         }
         break;
     case EBP_MSG_DISCOVER_ACK: /* 0x03 */
@@ -94,20 +94,24 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             uint64_t buff_id = be64_to_cpu(ack->buffer_id);
             EBA_DBG("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
             //todo handle mtu
-            uint64_t file_size = 0;
-            int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
+            /*int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
             if (rc < 0) {
                 EBA_ERR("ebp_handle_packets: Failed to read node_local.eba, ret=%d\n", rc);
                 kfree_skb(skb);
                 return NET_RX_DROP;
             } else {
-                EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", file_size);
-
-                rc = ebp_remote_write(buff_id, 0, file_size, (char*) local_specs, eth->h_source);
-                if (rc < 0) {
-                    EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
+                EBA_DBG("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)4096);
+                uint64_t offset = 0;
+                for(int i = 0 ; i < 4 ; i++)
+                {
+                    rc = ebp_remote_write(buff_id, offset, (uint64_t)1000, (char*) (local_specs) + offset, eth->h_source);
+                    if (rc < 0) {
+                        EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
+                    }
+                    offset+= 1000;
                 }
             }
+        */
         }
         break;
     case EBP_MSG_INVOKE: /* 0x02 */
@@ -169,17 +173,35 @@ void ebp_init(void)
     local_specs = eba_internals_malloc(4096,0);
     char mac[6] = {0xff,0xff,0xff,0xff,0xff,0xff};
     send_discover_req_packet(69,mac,"enp0s8");
+    print_node_infos();
 }
 void ebp_exit(void)
 {
     dev_remove_pack(&ebp_packet_type);
 }
-
+#define INVALID_NODE_ID 0xffff
 /* Global arrays for the EBA protocol data structures */
 struct node_info node_infos[MAX_NODE_COUNT];
 int nodes_count = 1;
 struct invoke_tracker invoke_trackers[MAX_INVOKE_COUNT];
 struct op_entry op_entries[MAX_OP_COUNT];
+/* Add a helper function to print the global node_infos array */
+void print_node_infos(void)
+{
+    int i;
+    EBA_DBG("=== node_infos Array Dump ===\n");
+    for (i = 0; i < MAX_NODE_COUNT; i++) {
+        if (node_infos[i].id != INVALID_NODE_ID) {
+            EBA_DBG("Slot %d: NodeID=%d, MTU=%u, MAC=%pM, node_specs=%llu\n",
+                    i,
+                    node_infos[i].id,
+                    node_infos[i].mtu,
+                    node_infos[i].mac,
+                    node_infos[i].node_specs);
+        }
+    }
+    EBA_DBG("=============================\n");
+}
 void print_op_entries(void)
 {
     int i;
@@ -195,7 +217,7 @@ int node_info_array_init(void)
     uint64_t i;
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        node_infos[i].id = -1;
+        node_infos[i].id = INVALID_NODE_ID;
         node_infos[i].mtu = 0;
         /* Zero out the 6-byte MAC address */
         memset(node_infos[i].mac, 0, sizeof(node_infos[i].mac));
@@ -404,28 +426,29 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
 }
 int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
 {
+    int free_slot = -1;
     int i;
+    
+    /* Find the first free slot (indicated by id == -1) */
     for (i = 0; i < MAX_NODE_COUNT; i++) {
-        if ((node_infos[i].id != -1) &&
-            (memcmp(node_infos[i].mac, mac, sizeof(node_infos[i].mac)) == 0)) {
-            EBA_ERR("ebp_register_node: Node with MAC %pM is already registered.\n", mac);
-            return -EEXIST;
+        if (node_infos[i].id == INVALID_NODE_ID) {
+            free_slot = i;
+            break;
         }
     }
-    for (i = 0; i < MAX_NODE_COUNT; i++) {
-        if (node_infos[i].id == -1) {
-            node_infos[i].id         = nodes_count; 
-            node_infos[i].mtu        = mtu;
-            memcpy(node_infos[i].mac, mac, 6);
-            node_infos[i].node_specs = node_specs;
-            nodes_count++;
-
-            EBA_DBG("ebp_register_node: Registered node with ID=%d, MAC=%pM, MTU=%u, node_specs=%llu\n",
-                     i, mac, mtu, node_specs);
-            return 0;
-        }
+    if (free_slot == -1) {
+        EBA_ERR("ebp_register_node: No space left to register a new node.\n");
+        return -ENOSPC;
     }
-
-    EBA_ERR("ebp_register_node: No space left to register a new node.\n");
-    return -ENOSPC;
+    /* Register the node in the found free slot */
+    node_infos[free_slot].id = nodes_count;
+    node_infos[free_slot].mtu = mtu;
+    memcpy(node_infos[free_slot].mac, mac, 6);
+    node_infos[free_slot].node_specs = node_specs;
+    EBA_DBG("ebp_register_node: Registered node with NodeID=%d (slot %d), MAC=%pM, MTU=%u, node_specs=%llu\n",
+            node_infos[free_slot].id, free_slot, mac, mtu, node_specs);
+    nodes_count++;
+    return 0;
 }
+
+

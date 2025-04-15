@@ -9,7 +9,7 @@
  * License: GPL
  * Version: 1.0
  */
- //#define DEBUG
+ #define DEBUG
  #include <linux/module.h>       /* Core header for loading LKMs into the kernel */
  #include <linux/init.h>         /* Macros: __init, __exit */
  #include <linux/fs.h>           /* File operations, dev_t, etc. */

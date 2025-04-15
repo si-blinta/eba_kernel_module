@@ -462,4 +462,5 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs);
         Handle MTU for each operation, make sure it uses the min(local mtu,remote mtu). 
         TODO finish the discovery
 */
+void print_node_infos(void);
 #endif

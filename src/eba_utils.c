@@ -332,3 +332,4 @@ int test_eba_export_node_specs(void)
     EBA_INFO("=== test_eba_export_node_specs: END ===\n");
     return 0; /* success */
 }
+
