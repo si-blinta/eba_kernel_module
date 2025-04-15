@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>EBA Framework: Main Page</title>
+<title>EBA Framework: ebp_header Struct Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -47,7 +47,6 @@ $(function() {
 /* @license-end */
 </script>
 <div id="main-nav"></div>
-</div><!-- top -->
 <!-- window showing the filter options -->
 <div id="MSearchSelectWindow"
      onmouseover="return searchBox.OnSearchSelectShow()"
@@ -69,10 +68,47 @@ $(function() {
 </div>
 </div>
 
+</div><!-- top -->
 <div class="header">
-  <div class="headertitle"><div class="title">EBA Framework Documentation</div></div>
+  <div class="summary">
+<a href="#pub-attribs">Public Attributes</a> &#124;
+<a href="structebp__header-members.html">List of all members</a>  </div>
+  <div class="headertitle"><div class="title">ebp_header Struct Reference</div></div>
 </div><!--header-->
 <div class="contents">
+
+<p><code>#include &lt;<a class="el" href="ebp_8h_source.html">ebp.h</a>&gt;</code></p>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
+Public Attributes</h2></td></tr>
+<tr class="memitem:a4919e2011b1780aa1d205e0c8c0ded1b" id="r_a4919e2011b1780aa1d205e0c8c0ded1b"><td class="memItemLeft" align="right" valign="top">uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structebp__header.html#a4919e2011b1780aa1d205e0c8c0ded1b">msgType</a></td></tr>
+<tr class="separator:a4919e2011b1780aa1d205e0c8c0ded1b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>struct <a class="el" href="structebp__header.html">ebp_header</a> - Minimal header for EBA protocol messages. @msgType: Indicates the type of EBA message (see enum EBP_MSG).</p>
+<p>This header is placed immediately after the <a class="el" href="protocolEthernet-p.html">Ethernet</a> header in an EBA frame. It allows nodes to determine the processing logic based on the message type. </p>
+
+<p class="definition">Definition at line <a class="el" href="ebp_8h_source.html#l00229">229</a> of file <a class="el" href="ebp_8h_source.html">ebp.h</a>.</p>
+</div><h2 class="groupheader">Member Data Documentation</h2>
+<a id="a4919e2011b1780aa1d205e0c8c0ded1b" name="a4919e2011b1780aa1d205e0c8c0ded1b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4919e2011b1780aa1d205e0c8c0ded1b">&#9670;&#160;</a></span>msgType</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t ebp_header::msgType</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="ebp_8h_source.html#l00230">230</a> of file <a class="el" href="ebp_8h_source.html">ebp.h</a>.</p>
+
+</div>
+</div>
+<hr/>The documentation for this struct was generated from the following file:<ul>
+<li>include/<a class="el" href="ebp_8h_source.html">ebp.h</a></li>
+</ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

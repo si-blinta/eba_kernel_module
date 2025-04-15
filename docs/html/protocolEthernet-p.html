@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>EBA Framework: Main Page</title>
+<title>EBA Framework: &lt;Ethernet&gt; Protocol Reference</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -47,7 +47,6 @@ $(function() {
 /* @license-end */
 </script>
 <div id="main-nav"></div>
-</div><!-- top -->
 <!-- window showing the filter options -->
 <div id="MSearchSelectWindow"
      onmouseover="return searchBox.OnSearchSelectShow()"
@@ -69,10 +68,18 @@ $(function() {
 </div>
 </div>
 
+</div><!-- top -->
 <div class="header">
-  <div class="headertitle"><div class="title">EBA Framework Documentation</div></div>
+  <div class="headertitle"><div class="title">&lt;Ethernet&gt; Protocol Reference</div></div>
 </div><!--header-->
 <div class="contents">
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>send_raw_ethernet_packet - Send a raw <a class="el" href="protocolEthernet-p.html">Ethernet</a> packet. @payload: Pointer to the payload data to include in the packet. @payload_len: Length of the payload in bytes. @dst_mac: Pointer to the destination MAC address (typically a 6-byte array). (e.g., ETH_P_IP, ETH_P_ARP) in host byte order. @ifname: Network interface name (e.g., "eth0") through which the packet is transmitted.</p>
+<p>This function allocates an sk_buff and constructs the <a class="el" href="protocolEthernet-p.html">Ethernet</a> header by setting the destination and source MAC addresses as well as the specified protocol. It then appends the provided payload and transmits the packet using the appropriate network device.</p>
+<p>Return: 0 on success or a negative error code on failure. </p>
+</div><hr/>The documentation for this protocol was generated from the following file:<ul>
+<li>include/<a class="el" href="eba__net_8h_source.html">eba_net.h</a></li>
+</ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

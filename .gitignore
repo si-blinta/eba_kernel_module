@@ -14,5 +14,4 @@
 
 # Explicitly include generated Doxygen documentation directories and their files:
 !docs/
-!docs/html/
-!docs/html/index.html
+!docs/html/*
