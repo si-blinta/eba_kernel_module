@@ -3,6 +3,8 @@
 #include "eba_net.h"
 #include <linux/delay.h> 
 #include "eba.h"
+#include "eba_utils.h"
+void* local_specs = NULL;
 /*
  * Global packet_type structure for our extended buffer protocol.
  */
@@ -91,24 +93,21 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
             struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
             uint64_t buff_id = be64_to_cpu(ack->buffer_id);
             EBA_DBG("ebp_handle_packets: Discover Ack: buffer_id = 0x%llu \n", buff_id);
-            //here read a file called node_specs.eba, and write its content to the distant buffer : todo
             //todo handle mtu
-            /*char *file_data = NULL;
             uint64_t file_size = 0;
-            int rc = read_file_into_buffer("/var/lib/eba/node_local.eba", &file_data, &file_size);
+            int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs);
             if (rc < 0) {
-                EBA_ERR("Failed to read node_local.eba, ret=%d\n", rc);
-                // Possibly stop or continue with empty data
-                //handle errors
+                EBA_ERR("ebp_handle_packets: Failed to read node_local.eba, ret=%d\n", rc);
+                kfree_skb(skb);
+                return NET_RX_DROP;
             } else {
-                EBA_INFO("Read %llu bytes from node_local.eba, sending to remote\n", file_size);
+                EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", file_size);
 
-                rc = ebp_remote_write(buff_id, 0, file_size, file_data, eth->h_source);
+                rc = ebp_remote_write(buff_id, 0, file_size, (char*) local_specs, eth->h_source);
                 if (rc < 0) {
-                    EBA_ERR("Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
+                    EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write() node_local.eba content, ret=%d\n", rc);
                 }
-                kfree(file_data);
-            }*/
+            }
         }
         break;
     case EBP_MSG_INVOKE: /* 0x02 */
@@ -167,6 +166,7 @@ void ebp_init(void)
     invoke_tracker_array_init();
     op_entry_array_init();
     ebp_ops_init();
+    local_specs = eba_internals_malloc(4096,0);
 }
 void ebp_exit(void)
 {
@@ -418,7 +418,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
             node_infos[i].node_specs = node_specs;
             nodes_count++;
 
-            EBA_INFO("ebp_register_node: Registered node with ID=%d, MAC=%pM, MTU=%u, node_specs=%llu\n",
+            EBA_DBG("ebp_register_node: Registered node with ID=%d, MAC=%pM, MTU=%u, node_specs=%llu\n",
                      i, mac, mtu, node_specs);
             return 0;
         }
