@@ -589,7 +589,7 @@ uint64_t ebp_get_specs_from_node_mac(const char *mac_address)
     int i;
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        if (strcmp(node_infos[i].mac, mac_address) == 0)
+        if (memcmp(node_infos[i].mac, mac_address,6) == 0)
         {
             return node_infos[i].node_specs;
         }

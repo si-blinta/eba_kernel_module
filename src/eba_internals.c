@@ -96,7 +96,7 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
          gen_pool_free(eba_pool, addr, size);
          return NULL;
     }
-
+    memset(buf, 0, sizeof(*buf));  // Zero out entire structure
     spin_lock_init(&buf->lock);
     buf->type = 0;    /* Set default type (customize if needed) */
     
