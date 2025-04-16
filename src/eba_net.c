@@ -142,7 +142,7 @@ int eba_net_set_mtu(const char *ifname, int new_mtu)
 char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len)
 {
     uint64_t len = sizeof(struct ebp_discover_req);
-    struct ebp_discover_req *req = kmalloc(len, GFP_KERNEL);
+    struct ebp_discover_req *req = kmalloc(len, GFP_ATOMIC);
     if (!req)
         return NULL;
     req->header.msgType = EBP_MSG_DISCOVER;
@@ -154,7 +154,7 @@ char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len)
 char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len)
 {
     uint64_t len = sizeof(struct ebp_discover_ack);
-    struct ebp_discover_ack *ack = kmalloc(len, GFP_KERNEL);
+    struct ebp_discover_ack *ack = kmalloc(len, GFP_ATOMIC);
     if (!ack)
         return NULL;
     ack->header.msgType = EBP_MSG_DISCOVER_ACK;
@@ -169,7 +169,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
     uint64_t *out_len)
 {
     uint64_t total_len = sizeof(struct ebp_invoke_req) + args_len + payload_len;
-    char *buf = kmalloc(total_len, GFP_KERNEL);
+    char *buf = kmalloc(total_len, GFP_ATOMIC);
     if (!buf)
         return NULL;
 
@@ -190,7 +190,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
 char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len)
 {
     uint64_t len = sizeof(struct ebp_invoke_ack);
-    struct ebp_invoke_ack *ack = kmalloc(len, GFP_KERNEL);
+    struct ebp_invoke_ack *ack = kmalloc(len, GFP_ATOMIC);
     if (!ack)
         return NULL;
     ack->header.msgType = EBP_MSG_INVOKE_ACK;

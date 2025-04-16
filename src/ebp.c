@@ -434,7 +434,7 @@ int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6])
     EBA_INFO("ebp_op_read: dest_buffer_id = %llu, src_buffer_id = %llu, dst_offset = %llu, src_offset = %llu, size = %llu\n", rd_args->dst_buffer_id, rd_args->src_buffer_id,
              rd_args->dst_offset, rd_args->src_offset, rd_args->size);
     // TODO here inquue to the invoke queue, if it is queued send an ack
-    void *read_data = kmalloc(rd_args->size, GFP_KERNEL);
+    void *read_data = kmalloc(rd_args->size, GFP_ATOMIC);
     int ret = eba_internals_read(read_data, rd_args->src_buffer_id, rd_args->src_offset, rd_args->size);
     ebp_remote_write(rd_args->dst_buffer_id, rd_args->dst_offset, rd_args->size, (const char *)read_data, mac);
 
