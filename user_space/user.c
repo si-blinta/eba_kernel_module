@@ -10,7 +10,7 @@ int main(void)
 {
    char command[32];
 
-   printf("Enter command (alloc, write, read, remote_alloc, remote_write, remote_read, discover, export ): ");
+   printf("Enter command (alloc, write, read, remote_alloc, remote_write, remote_read, discover, export, get_node_infos): ");
    if (scanf("%31s", command) != 1)
    {
       fprintf(stderr, "Error reading command.\n");
@@ -55,7 +55,7 @@ int main(void)
          fprintf(stderr, "Error reading string.\n");
          return 1;
       }
-      size_t len = strlen(userString);
+      uint64_t len = strlen(userString);
       printf("Parameters read: local_id = %" PRIu64 ", offset = %" PRIu64 ", string = \"%s\", length = %zu\n",  local_id, offset, userString, len);
       eba_write(userString, local_id, offset, len);
    }
@@ -73,12 +73,12 @@ int main(void)
       eba_read(read,local_id,offset,size);
       
       printf("Read (hex dump): ");
-      for (size_t i = 0; i < size; i++) {
+      for (uint64_t i = 0; i < size; i++) {
          printf("%02x ", (unsigned char)read[i]);
       }
       printf("\n");
       printf("Read (as chars): ");
-      for (size_t i = 0; i < size; i++) {
+      for (uint64_t i = 0; i < size; i++) {
          printf("%c",read[i]);
       }
       printf("\n");
@@ -117,7 +117,7 @@ int main(void)
          fprintf(stderr, "Error reading remote_write string.\n");
          return 1;
       }
-      size_t len = strlen(userString);
+      uint64_t len = strlen(userString);
       printf("Parameters read: remote_id = %" PRIu64 ", offset = %" PRIu64 ", string = \"%s\", length = %zu\n",remote_id, offset, userString, len);
       eba_remote_write(remote_id,offset,len,userString,mac);
          
@@ -145,6 +145,24 @@ int main(void)
       eba_export_node_specs();
       printf("Exported node specs\n");
    }
+   else if (strcmp(command, "get_node_infos") == 0) {
+      struct eba_node_info infos[MAX_NODE_COUNT];
+      memset(infos,0,sizeof(infos));
+      uint64_t count = 0;
+      if (eba_get_node_infos(infos, &count) < 0) {
+          fprintf(stderr, "Failed to fetch node infos\n");
+          return 1;
+      }
+      printf("Found %zu node(s):\n", count);
+      for (uint64_t i = 0; i < count; i++) {
+          unsigned char *m = infos[i].mac;
+          printf("  NodeID=%u  MTU=%u  MAC=%02x:%02x:%02x:%02x:%02x:%02x  specs=%llu\n",
+                 infos[i].id,
+                 infos[i].mtu,
+                 m[0], m[1], m[2], m[3], m[4], m[5],
+                 (unsigned long long)infos[i].node_specs);
+      }
+  }
    else
    {
       printf("Unknown command.\n");

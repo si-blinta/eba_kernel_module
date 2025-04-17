@@ -9,7 +9,18 @@
  */
 #ifndef EBA_USER_H
 #define EBA_USER_H
+#include "eba.h"    /* Public IOCTL definitions and structures for the kernel module */
+#include <fcntl.h>  /* open() */
+#include <stdio.h>  /* printf(), perror() */
+#include <stdlib.h> /* exit() */
 #include <stdint.h>
+#include <sys/ioctl.h> /* ioctl() */
+#include <unistd.h>    /* close() */
+#include <string.h>    /* memset() */
+
+/* WARNING , if we update the informations on ebp.h they must be updated here !*/
+
+#define MAX_NODE_COUNT    10 
 /**
  * eba_alloc - Request a buffer from the local node.
  * @size:      The size (in bytes) for the buffer allocation.
@@ -114,5 +125,14 @@ int eba_export_node_specs(void);
  * @return 0 on success, or a negative error code on failure.
  */
 int eba_export_node_specs(void);
+
+/**
+ * eba_get_node_infos() - fetch the list of registered nodes from kernel
+ * @out:       pre‐allocated array of struct eba_node_info (size = max)
+ * @out_count: actual number of entries returned
+ *
+ * Returns 0 on success, ‑1 on error.
+ */
+int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count);
 
 #endif

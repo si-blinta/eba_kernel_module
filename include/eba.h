@@ -81,8 +81,15 @@
  */
 #define EBA_IOCTL_EXPORT_NODE_SPECS _IO(EBA_IOC_MAGIC, 8)
 
+/**
+ * EBA_IOCTL_GET_NODE_INFOS - IOCTL command to copy all known nodes .
+ *
+ */
+#define EBA_IOCTL_GET_NODE_INFOS _IOWR(EBA_IOC_MAGIC, 9, struct eba_node_info)
+
+
 /** Maximum number of EBA IOCTL commands supported. */
-#define EBA_IOC_MAXNR 8
+#define EBA_IOC_MAXNR 9
 
 /* Logging Macros */
 
@@ -207,5 +214,17 @@ struct eba_remote_read {
     const char mac[6];
 };
 
-
+/**
+ * struct eba_node_info - user‐visible copy of kernel's node_info
+ * @id:          Node ID (same as kernel->node_infos[i].id)
+ * @mtu:         MTU advertised by that node
+ * @mac:         6‐byte MAC address
+ * @node_specs:  pointer/handle to that node's specs buffer
+ */
+struct eba_node_info {
+    __u16        id;
+    __u16        mtu;
+    unsigned char mac[6];
+    __u64        node_specs;
+};
 #endif /* _EBA_H */

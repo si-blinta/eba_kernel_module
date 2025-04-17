@@ -31,7 +31,7 @@
 #define MAX_OP_COUNT      5
 #define MTU_OVERHEAD 38
 #define MINIMAL_MTU 512
-
+#define INVALID_NODE_ID 0xffff
 /**
  * enum INVOKE_STATUS - Possible statuses for an invocation.
  * @INVOKE_QUEUED:      Invocation is queued for processing.

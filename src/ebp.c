@@ -248,7 +248,6 @@ void ebp_exit(void)
 }
 
 /* Constants and global arrays for nodes, invokes, and ops */
-#define INVALID_NODE_ID 0xffff
 struct node_info node_infos[MAX_NODE_COUNT];
 int nodes_count = 1;
 struct invoke_tracker invoke_trackers[MAX_INVOKE_COUNT];
