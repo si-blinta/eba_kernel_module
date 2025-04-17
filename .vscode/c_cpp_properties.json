@@ -1,0 +1,24 @@
+{
+    "configurations": [
+      {
+        "name": "Linux Kernel Module",
+        "includePath": [
+          "${workspaceFolder}/**",
+          "${workspaceFolder}/../linux-src/include",
+          "${workspaceFolder}/../linux-src/arch/x86/include",
+          "${workspaceFolder}/../linux-src/include/uapi",
+          "${workspaceFolder}/../linux-src/arch/x86/include/uapi"
+        ],
+        "defines": [
+          "__KERNEL__",
+          "MODULE"
+        ],
+        "compilerPath": "/usr/bin/gcc",
+        "cStandard": "c11",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "linux-gcc-x64"
+      }
+    ],
+    "version": 4
+  }
+  

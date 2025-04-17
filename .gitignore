@@ -16,3 +16,4 @@
 !docs/latex/refman.pdf
 !docs/html/*
 build/eba.mod.c
+!.vscode/c_cpp_properties.json
