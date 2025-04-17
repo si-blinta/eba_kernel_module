@@ -8,7 +8,7 @@ INCLUDE_DIR = ../include
 LIB_DIR = $(shell pwd)/../lib
 
 # Compiler flags: -O2 optimization, -Wall for warnings, include our header directory.
-CFLAGS = -O2 -Wall -I$(INCLUDE_DIR)
+CFLAGS = -O2 -I$(INCLUDE_DIR)
 
 # Linker flags:
 # -L$(LIB_DIR) specifies the library search directory.

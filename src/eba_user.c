@@ -28,17 +28,11 @@
      return fd;
  }
  
- /*
-  * eba_alloc - Allocates a buffer from the EBA kernel module.
-  *
-  * This function wraps the IOCTL_ALLOC command.
-  */
  uint64_t eba_alloc(uint64_t size, uint64_t life_time, uint8_t type)
  {
      int fd, ret;
      struct eba_alloc_data alloc;
  
-     /* For now, we ignore the 'type' parameter if not used by the kernel module */
      alloc.size = size;
      alloc.life_time = life_time;
      alloc.buff_id = 0;
@@ -58,11 +52,6 @@
      return alloc.buff_id;
  }
  
- /*
-  * eba_write - Writes data to a locally allocated buffer.
-  *
-  * This function wraps the IOCTL_WRITE command.
-  */
  int eba_write(const void *data, uint64_t buf_id, uint64_t off, uint64_t size)
  {
      int fd, ret;
@@ -86,12 +75,7 @@
      }
      return 0;
  }
- 
- /*
-  * eba_read - Reads data from a locally allocated buffer.
-  *
-  * This function wraps the IOCTL_READ command.
-  */
+
  int eba_read(void *data_out, uint64_t buf_id, uint64_t off, uint64_t size)
  {
      int fd, ret;
@@ -116,3 +100,133 @@
      return 0;
  }
  
+
+int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_alloc remote;
+
+    /* Fill in the remote_alloc structure */
+    memset(&remote, 0, sizeof(remote));
+    remote.size = size;
+    remote.life_time = life_time;
+    remote.buffer_id = local_buff_id;
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_ALLOC, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_REMOTE_ALLOC)");
+        return 1;
+    }
+    return 0;
+}
+
+int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_write remote;
+
+    /* Fill in the remote_alloc structure */
+    remote.buff_id = buff_id;
+    remote.offset = offset;
+    remote.size = size;
+    remote.payload = malloc(remote.size);
+    if(remote.payload == 0)
+    {
+        perror("malloc failed");
+        return 1;
+    }
+    memcpy((void *)remote.payload, payload, remote.size);
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        free(remote.payload);
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_WRITE, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        free(remote.payload);
+        perror("ioctl(EBA_IOCTL_REMOTE_WRITE)");
+        return 1;
+    }
+    free(remote.payload);
+    return 0;
+}
+
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/)
+{
+    int fd, ret;
+    struct eba_remote_read remote;
+
+    /* Fill in the remote_alloc structure */
+    remote.dst_buffer_id = dst_buffer_id;
+    remote.src_buffer_id= src_buffer_id;
+    remote.dst_offset = dst_offset;
+    remote.src_offset = src_offset;
+    remote.size = size;
+    memcpy((void *)remote.mac, mac, 6);
+
+    fd = open("/dev/eba", O_RDWR);
+    if (fd < 0) {
+        perror("open(/dev/eba)");
+        return 1;
+    }
+
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_READ, &remote);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_REMOTE_READ)");
+        return 1;
+    }
+    return 0;
+}
+
+int eba_discover(void)
+{
+    int fd, ret;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return 1;
+        
+    ret = ioctl(fd, EBA_IOCTL_DISCOVER, NULL);
+    close(fd);
+
+    if (ret < 0) {
+        perror("ioctl(EBA_IOCTL_DISCOVER)");
+        return ret;
+    }
+
+    return 0;
+}
+
+int eba_export_node_specs(void)
+{
+    int fd, ret;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+
+    ret = ioctl(fd, EBA_IOCTL_EXPORT_NODE_SPECS, NULL);
+    close(fd);
+
+    if (ret < 0)
+        perror("ioctl(EBA_IOCTL_EXPORT_NODE_SPECS)");
+
+    return ret;
+}

@@ -1,0 +1,140 @@
+# Doxyfile 1.9.2
+# This file describes the settings to be used by the documentation system
+# doxygen (www.doxygen.nl) for the EBA Framework.
+#
+# All text after a '#' is considered a comment and is ignored by doxygen.
+
+#---------------------------------------------------------------------------
+# Project related configuration options
+#---------------------------------------------------------------------------
+
+# The PROJECT_NAME tag is a single word (or a sequence of words surrounded by quotes)
+# that should identify your project.
+PROJECT_NAME           = "EBA Framework"
+
+# The PROJECT_NUMBER tag can be used to enter a project or revision number.
+PROJECT_NUMBER         = "1.0"
+
+# The PROJECT_BRIEF tag can be used to provide a short description of your project.
+PROJECT_BRIEF          = "Documentation for the EBA Framework"
+
+# The PROJECT_LOGO tag can be used to specify a logo or icon that is included in the documentation.
+PROJECT_LOGO           =
+
+#---------------------------------------------------------------------------
+# Output directory configuration options
+#---------------------------------------------------------------------------
+
+# The OUTPUT_DIRECTORY tag is used to specify the (relative or absolute) base path
+# where the generated documentation will be put.
+OUTPUT_DIRECTORY       = docs
+
+# If the CREATE_SUBDIRS tag is set to YES then doxygen will create 4096 sub-directories
+# (in 2 levels) under the output directory of each output format and will distribute the
+# generated files over these directories.
+CREATE_SUBDIRS         = NO
+
+#---------------------------------------------------------------------------
+# Build related configuration options
+#---------------------------------------------------------------------------
+
+# If the EXTRACT_ALL tag is set to YES doxygen will assume all entities in
+# documented source files are documented, even if no documentation was available.
+EXTRACT_ALL            = YES
+
+# The EXTRACT_PRIVATE tag can be used to specify whether private members will be included in the documentation.
+EXTRACT_PRIVATE        = YES
+
+# The EXTRACT_STATIC tag can be used to specify whether static members will be included in the documentation.
+EXTRACT_STATIC         = YES
+
+# If the EXTRACT_LOCAL_METHODS tag is set to YES, methods in local classes will be included.
+EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_LOCAL_METHODS  = YES
+
+#---------------------------------------------------------------------------
+# Configuration options related to the input files
+#---------------------------------------------------------------------------
+
+# The INPUT tag lists the directories or files that should be processed by doxygen.
+INPUT                  = include src user_space
+
+# The FILE_PATTERNS tag can be used to specify one or more wildcard patterns (like *.h and *.c)
+# to filter out the source-files in the directories.
+FILE_PATTERNS          = *.h *.c
+
+# If the RECURSIVE tag is set to YES, doxygen will recursively search the directories
+# specified by the INPUT tag for files to process.
+RECURSIVE              = YES
+
+# The EXCLUDE tag can be used to specify files and/or directories that should be excluded from the INPUT.
+EXCLUDE                = build
+
+#---------------------------------------------------------------------------
+# Preprocessor related configuration options
+#---------------------------------------------------------------------------
+
+# The ENABLE_PREPROCESSING tag can be used to enable (YES) or disable (NO) the preprocessing.
+ENABLE_PREPROCESSING   = YES
+
+# If the MACRO_EXPANSION tag is set to YES, doxygen will expand all macro names in the source code.
+MACRO_EXPANSION        = YES
+
+#---------------------------------------------------------------------------
+# Configuration options related to source browsing
+#---------------------------------------------------------------------------
+
+# If the SOURCE_BROWSER tag is set to YES, doxygen will generate a list of source files and
+# sources for each documented class/method.
+SOURCE_BROWSER         = YES
+
+# If INLINE_SOURCES tag is set to YES then doxygen will include the body of functions
+# and methods directly in the documentation.
+INLINE_SOURCES         = YES
+
+#---------------------------------------------------------------------------
+# Configuration options related to the dot tool
+#---------------------------------------------------------------------------
+
+# If the HAVE_DOT tag is set to YES then doxygen will assume the dot tool is available
+# and will use it to generate more advanced graphs.
+HAVE_DOT               = YES
+
+# The DOT_NUM_THREADS tag can be used to set the number of dot invocations doxygen is allowed to run in parallel.
+DOT_NUM_THREADS        = 2
+
+#---------------------------------------------------------------------------
+# Configuration options related to the HTML output
+#---------------------------------------------------------------------------
+
+# If the GENERATE_HTML tag is set to YES, doxygen will generate HTML output.
+GENERATE_HTML          = YES
+
+# The HTML_OUTPUT tag is used to specify where the HTML docs will be put.
+HTML_OUTPUT            = html
+
+# The HTML_FILE_EXTENSION tag can be used to specify the file extension for each generated HTML page.
+HTML_FILE_EXTENSION    = .html
+
+# The HTML_TIMESTAMP tag can be used to enable or disable the addition of a timestamp to the footer.
+HTML_TIMESTAMP         = YES
+
+#---------------------------------------------------------------------------
+# Configuration options related to the search engine
+#---------------------------------------------------------------------------
+
+# The SEARCHENGINE tag specifies whether or not a search engine should be used.
+SEARCHENGINE           = YES
+
+#---------------------------------------------------------------------------
+# Configuration options for warnings and progress messages
+#---------------------------------------------------------------------------
+
+# The QUIET tag can be used to disable all doxygen output.
+QUIET                  = NO
+
+# The WARNINGS tag can be used to turn on/off warnings.
+WARNINGS               = YES
+#---------------------------------------------------------------------------
+# End of Doxyfile
+#---------------------------------------------------------------------------

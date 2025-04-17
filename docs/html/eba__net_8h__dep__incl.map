@@ -1,0 +1,9 @@
+<map id="include/eba_net.h" name="include/eba_net.h">
+<area shape="rect" id="Node000001" title="EBA Networking Interface Header." alt="" coords="95,5,233,31"/>
+<area shape="rect" id="Node000002" href="$eba_8c.html" title=" " alt="" coords="5,79,85,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="134,40,66,81,63,76,132,35"/>
+<area shape="rect" id="Node000003" href="$eba__net_8c.html" title=" " alt="" coords="110,79,218,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="167,44,167,79,161,79,161,44"/>
+<area shape="rect" id="Node000004" href="$ebp_8c.html" title=" " alt="" coords="243,79,323,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="196,35,265,76,262,81,194,40"/>
+</map>

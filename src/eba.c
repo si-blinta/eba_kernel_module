@@ -9,7 +9,6 @@
  * License: GPL
  * Version: 1.0
  */
-
  #include <linux/module.h>       /* Core header for loading LKMs into the kernel */
  #include <linux/init.h>         /* Macros: __init, __exit */
  #include <linux/fs.h>           /* File operations, dev_t, etc. */
@@ -23,7 +22,7 @@
  #include "eba.h"                /* Public definitions, IOCTL commands, structures */
  #include "eba_net.h"
  #include "ebp.h"
- 
+ #include "eba_utils.h"
  /* Global variables for character device registration */
  static dev_t eba_devno;
  static struct cdev eba_cdev;
@@ -35,6 +34,9 @@
      int ret = 0;
      struct eba_alloc_data alloc_data;
      struct eba_rw_data rw_data;
+     struct eba_remote_alloc remote_alloc;
+     struct eba_remote_write remote_write;
+     struct eba_remote_read remote_read;
      void *kbuf; /* Temporary kernel buffer for data transfers */
  
      switch (cmd) {
@@ -42,61 +44,69 @@
           /* Copy the allocation parameters from user space */
           if (copy_from_user(&alloc_data, (void __user *)arg, sizeof(alloc_data)))
                return -EFAULT;
- 
-          /* Call internal allocation; buff_id will hold the virtual address */
+
           alloc_data.buff_id = (uint64_t)eba_internals_malloc(alloc_data.size,
                                                                alloc_data.life_time);
           if (!alloc_data.buff_id)
                ret = -ENOMEM;
  
-          /* Return the allocation info (including buff_id) to user space */
+          /* Return the allocation info to user space */
           if (copy_to_user((void __user *)arg, &alloc_data, sizeof(alloc_data)))
                ret = -EFAULT;
           break;
  
      case EBA_IOCTL_WRITE:
-          /* Copy the read/write structure from user space */
           if (copy_from_user(&rw_data, (void __user *)arg, sizeof(rw_data)))
                return -EFAULT;
- 
-          /* Allocate a temporary kernel buffer for the write data */
           kbuf = kmalloc(rw_data.size, GFP_KERNEL);
           if (!kbuf)
                return -ENOMEM;
-          /* Copy the data from the user-supplied pointer into the kernel buffer */
           if (copy_from_user(kbuf, (void __user *)(rw_data.user_addr), rw_data.size)) {
                kfree(kbuf);
                return -EFAULT;
           }
- 
-          /* Call the internal write function */
           ret = eba_internals_write(kbuf, rw_data.buff_id, rw_data.off, rw_data.size);
           kfree(kbuf);
           break;
  
      case EBA_IOCTL_READ:
-          /* Copy the read/write structure from user space */
           if (copy_from_user(&rw_data, (void __user *)arg, sizeof(rw_data)))
                return -EFAULT;
- 
-          /* Allocate a temporary kernel buffer to hold the read data */
           kbuf = kmalloc(rw_data.size, GFP_KERNEL);
           if (!kbuf)
                return -ENOMEM;
- 
-          /* Call the internal read function to copy data into the kernel buffer */
           ret = eba_internals_read(kbuf, rw_data.buff_id, rw_data.off, rw_data.size);
           if (ret) {
                kfree(kbuf);
                return ret;
           }
- 
-          /* Copy the data from the kernel buffer to the user-supplied pointer */
           if (copy_to_user((void __user *)(rw_data.user_addr), kbuf, rw_data.size))
                ret = -EFAULT;
           kfree(kbuf);
           break;
- 
+
+     case EBA_IOCTL_REMOTE_ALLOC:
+          if (copy_from_user(&remote_alloc, (void __user *)arg, sizeof(remote_alloc)))
+               return -EFAULT;
+          ret =  ebp_remote_alloc(remote_alloc.size,remote_alloc.life_time,remote_alloc.buffer_id,remote_alloc.mac);
+          break;
+
+     case EBA_IOCTL_REMOTE_WRITE:
+          if (copy_from_user(&remote_write, (void __user *)arg, sizeof(remote_write)))
+               return -EFAULT;
+          ret =  ebp_remote_write(remote_write.buff_id,remote_write.offset,remote_write.size,remote_write.payload,remote_write.mac);
+          break;
+     case EBA_IOCTL_REMOTE_READ:
+          if (copy_from_user(&remote_read, (void __user *)arg, sizeof(remote_read)))
+               return -EFAULT;
+          ret =  ebp_remote_read(remote_read.dst_buffer_id,remote_read.src_buffer_id,remote_read.dst_offset,remote_read.src_offset,remote_read.size,remote_read.mac);
+          break;
+     case EBA_IOCTL_DISCOVER:
+          ret = ebp_discover();
+          break;  
+     case EBA_IOCTL_EXPORT_NODE_SPECS:
+          ret = eba_export_node_specs();
+          break;   
      default:
           ret = -ENOTTY;
           break;
@@ -108,7 +118,7 @@
 static struct timer_list eba_timer;
 
 /* Timer callback function */
-static void eba_timer_callback(struct timer_list *t)
+static void eba_timer_callback_cleanup_buffer(struct timer_list *t)
 {
     eba_check_expired_buffers();
     mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER)); // reschedule for next second
@@ -164,16 +174,16 @@ static void eba_timer_callback(struct timer_list *t)
      /* Initialize the memory pool */
      ret = eba_internals_mempool_init();
      if (ret) {
-          pr_err("EBA: Mempool Init failed\n");
+          EBA_ERR("Mempool Init failed\n");
           goto err_mempool;
      }
      // Initialize the timer:
-     timer_setup(&eba_timer, eba_timer_callback, 0);
+     timer_setup(&eba_timer, eba_timer_callback_cleanup_buffer, 0);
      // Schedule the timer for the first time
      mod_timer(&eba_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
      
      ebp_init();
-     pr_info("EBA: Module loaded\n");
+     EBA_INFO("Module loaded\n");
      return 0;
  
  err_mempool:
@@ -197,7 +207,7 @@ static void eba_timer_callback(struct timer_list *t)
      cdev_del(&eba_cdev);
      unregister_chrdev_region(eba_devno, 1);
      ebp_exit();
-     pr_info("EBA: Module unloaded\n");
+     EBA_INFO("Module unloaded\n");
  }
  module_init(eba_module_init);
  module_exit(eba_module_exit);

@@ -1,5 +1,5 @@
 #include "eba_net.h"
-
+#include "eba.h"
 int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,const unsigned char *dst_mac,int protocol,const char *ifname)
 {
     struct net_device *dev = NULL;
@@ -10,7 +10,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
     /* Look up the network device by name */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("send_raw_ethernet_packet: Could not find device %s\n", ifname);
+        EBA_ERR("send_raw_ethernet_packet: Could not find device %s\n", ifname);
         return -ENODEV;
     }
     /* Calculate total length: Ethernet header + payload */
@@ -21,7 +21,7 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
      */
     skb = alloc_skb(packet_len + dev->needed_tailroom, GFP_KERNEL);
     if (!skb) {
-        pr_err("send_raw_ethernet_packet: Failed to allocate sk_buff\n");
+        EBA_ERR("send_raw_ethernet_packet: Failed to allocate sk_buff\n");
         dev_put(dev);
         return -ENOMEM;
     }
@@ -49,12 +49,13 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
         memcpy(payload_ptr, payload, payload_len);
     }
     /* Queue the packet for transmission */
+    EBA_INFO("TX total: %lu (ETH=%d, payload=%lu)\n", packet_len, ETH_HLEN, payload_len);
     ret = dev_queue_xmit(skb);
     if (ret < 0) {
-        pr_err("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
+        EBA_ERR("send_raw_ethernet_packet: Packet transmission failed: %d\n", ret);
         /* In case of error, the kernel should free the skb */
     } else {
-        pr_info("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
+        EBA_INFO("send_raw_ethernet_packet: Packet transmitted successfully on %s\n", ifname);
     }
     /* Release the reference to the network device */
     dev_put(dev);
@@ -62,27 +63,46 @@ int send_raw_ethernet_packet(const unsigned char *payload, size_t payload_len,co
 }
 
 
-int eba_net_get_max_mtu(const char *ifname, int *max_mtu)
+int eba_net_get_max_mtu(const char *ifname)
 {
     struct net_device *dev;
 
-    if (!ifname || !max_mtu)
+    if (!ifname)
         return -EINVAL;
 
     /* Look up the network device by name in the initial network namespace */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("EBA_NET: Could not find device %s\n", ifname);
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
         return -ENODEV;
     }
 
-    /* Some drivers set max_mtu in the net_device structure */
-    *max_mtu = dev->max_mtu;
-    pr_info("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
+    EBA_INFO("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
             dev->name, dev->mtu, dev->max_mtu);
 
     dev_put(dev);
-    return 0;
+    return dev->max_mtu;
+}
+
+int eba_net_get_current_mtu(const char *ifname)
+{
+    struct net_device *dev;
+
+    if (!ifname)
+        return -EINVAL;
+
+    /* Look up the network device by name in the initial network namespace */
+    dev = dev_get_by_name(&init_net, ifname);
+    if (!dev) {
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
+        return -ENODEV;
+    }
+
+    EBA_INFO("EBA_NET: Device %s current MTU: %d, Maximum supported MTU: %d\n",
+            dev->name, dev->mtu, dev->max_mtu);
+
+    dev_put(dev);
+    return dev->mtu;
 }
 
 int eba_net_set_mtu(const char *ifname, int new_mtu)
@@ -96,7 +116,7 @@ int eba_net_set_mtu(const char *ifname, int new_mtu)
     /* Look up the network device by name */
     dev = dev_get_by_name(&init_net, ifname);
     if (!dev) {
-        pr_err("EBA_NET: Could not find device %s\n", ifname);
+        EBA_ERR("EBA_NET: Could not find device %s\n", ifname);
         return -ENODEV;
     }
 
@@ -104,17 +124,183 @@ int eba_net_set_mtu(const char *ifname, int new_mtu)
     if (dev->netdev_ops && dev->netdev_ops->ndo_change_mtu) {
         ret = dev->netdev_ops->ndo_change_mtu(dev, new_mtu);
         if (ret) {
-            pr_err("EBA_NET: Failed to change MTU on %s to %d, error: %d\n",
+            EBA_ERR("EBA_NET: Failed to change MTU on %s to %d, error: %d\n",
                    dev->name, new_mtu, ret);
         } else {
-            pr_info("EBA_NET: Successfully changed MTU on %s to %d\n",
+            EBA_INFO("EBA_NET: Successfully changed MTU on %s to %d\n",
                     dev->name, new_mtu);
         }
     } else {
-        pr_err("EBA_NET: Device %s does not support MTU change\n", dev->name);
+        EBA_ERR("EBA_NET: Device %s does not support MTU change\n", dev->name);
         ret = -EOPNOTSUPP;
     }
 
     dev_put(dev);
     return ret;
+}
+
+char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len)
+{
+    uint64_t len = sizeof(struct ebp_discover_req);
+    struct ebp_discover_req *req = kmalloc(len, GFP_ATOMIC);
+    if (!req)
+        return NULL;
+    req->header.msgType = EBP_MSG_DISCOVER;
+    req->mtu = htons(mtu);
+    *out_len = len;
+    return (char *)req;
+}
+
+char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len)
+{
+    uint64_t len = sizeof(struct ebp_discover_ack);
+    struct ebp_discover_ack *ack = kmalloc(len, GFP_ATOMIC);
+    if (!ack)
+        return NULL;
+    ack->header.msgType = EBP_MSG_DISCOVER_ACK;
+    ack->buffer_id = cpu_to_be64(buffer_id);
+    *out_len = len;
+    return (char *)ack;
+}
+
+char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
+    const char *args, uint64_t args_len,
+    const char *payload, uint64_t payload_len,
+    uint64_t *out_len)
+{
+    uint64_t total_len = sizeof(struct ebp_invoke_req) + args_len + payload_len;
+    char *buf = kmalloc(total_len, GFP_ATOMIC);
+    if (!buf)
+        return NULL;
+
+    struct ebp_invoke_req *req = (struct ebp_invoke_req *)buf;
+    req->header.msgType = EBP_MSG_INVOKE;
+    req->iid = htonl(iid);
+    req->opid = htonl(opid);
+    /* Set args_len as the sum of the write header length and the payload length */
+    req->args_len = cpu_to_be64(args_len + payload_len);
+    if (args && args_len > 0)
+        memcpy(buf + sizeof(struct ebp_invoke_req), args, args_len);
+    if (payload && payload_len > 0)
+        memcpy(buf + sizeof(struct ebp_invoke_req) + args_len, payload, payload_len);
+    *out_len = total_len;
+    return buf;
+}
+
+char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len)
+{
+    uint64_t len = sizeof(struct ebp_invoke_ack);
+    struct ebp_invoke_ack *ack = kmalloc(len, GFP_ATOMIC);
+    if (!ack)
+        return NULL;
+    ack->header.msgType = EBP_MSG_INVOKE_ACK;
+    ack->status = status;
+    *out_len = len;
+    return (char *)ack;
+}
+
+int send_discover_req_packet(uint16_t mtu, const unsigned char dest_mac[6], const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_discover_req_packet(mtu, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_discover_req_packet: build_discover_req_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_discover_req_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_discover_req_packet: Sent EBP_MSG_DISCOVER to %pM via %s (MTU = %u)\n",
+             dest_mac, ifname, mtu);
+    return 0;
+}
+
+int send_discover_ack_packet(uint64_t buffer_id, const unsigned char dest_mac[6], const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_discover_ack_packet(buffer_id, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_discover_ack_packet: build_discover_ack_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_discover_ack_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_discover_ack_packet: Sent EBP_MSG_DISCOVER_ACK to %pM via %s (buffer_id=0x%llx)\n",
+             dest_mac, ifname, (unsigned long long)buffer_id);
+    return 0;
+}
+
+int send_invoke_req_packet(uint32_t iid, uint32_t opid,
+                           const char *args, uint64_t args_len,
+                           const void *payload, uint64_t payload_len,
+                           const unsigned char dest_mac[6],
+                           const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_invoke_req_packet(iid, opid,
+                                           args, args_len,
+                                           payload, payload_len,
+                                           &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_invoke_req_packet: build_invoke_req_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_invoke_req_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_invoke_req_packet: Sent EBP_MSG_INVOKE (IID=%u, OPID=%u) to %pM via %s\n",
+             iid, opid, dest_mac, ifname);
+    return 0;
+}
+
+
+int send_invoke_ack_packet(uint8_t status,
+                           const unsigned char dest_mac[6],
+                           const char *ifname)
+{
+    uint64_t pkt_len = 0;
+    char *packet = build_invoke_ack_packet(status, &pkt_len);
+    int ret;
+
+    if (!packet) {
+        EBA_ERR("send_invoke_ack_packet: build_invoke_ack_packet() failed.\n");
+        return -ENOMEM;
+    }
+
+    ret = send_raw_ethernet_packet(packet, pkt_len, dest_mac, EBP_ETHERTYPE, ifname);
+    if (ret < 0) {
+        EBA_ERR("send_invoke_ack_packet: send_raw_ethernet_packet failed, ret = %d\n", ret);
+        kfree(packet);
+        return ret;
+    }
+
+    kfree(packet);
+    EBA_INFO("send_invoke_ack_packet: Sent EBP_MSG_INVOKE_ACK (status=0x%02x) to %pM via %s\n",
+             status, dest_mac, ifname);
+    return 0;
 }
