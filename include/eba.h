@@ -30,16 +30,16 @@
 /**
  * EBA_IOCTL_WRITE - IOCTL command for writing data to an allocated buffer.
  *
- * This command uses the struct eba_rw_data structure to specify write operations.
+ * This command uses the struct eba_write structure to specify write operations.
  */
-#define EBA_IOCTL_WRITE _IOW(EBA_IOC_MAGIC, 2, struct eba_rw_data)
+#define EBA_IOCTL_WRITE _IOW(EBA_IOC_MAGIC, 2, struct eba_write)
 
 /**
  * EBA_IOCTL_READ - IOCTL command for reading data from an allocated buffer.
  *
- * This command uses the struct eba_rw_data structure to specify read operations.
+ * This command uses the struct eba_read structure to specify read operations.
  */
-#define EBA_IOCTL_READ  _IOR(EBA_IOC_MAGIC, 3, struct eba_rw_data)
+#define EBA_IOCTL_READ  _IOR(EBA_IOC_MAGIC, 3, struct eba_read)
 
 
 /**
@@ -116,21 +116,31 @@ struct eba_alloc_data {
 };
 
 /**
- * struct eba_rw_data - Structure for read and write operations via IOCTL.
+ * struct eba_rw_data - Structure for read operation via IOCTL.
  * @buff_id:   Buffer identifier (virtual address returned by an allocation call).
- * @off:       Offset within the buffer where the operation begins.
- * @size:      Number of bytes to read or write.
- * @user_addr: User-space pointer (represented as a 64-bit value) for data transfer.
- *
- * This structure is used to perform read and write operations on a previously allocated buffer.
- * It contains the necessary parameters to identify the buffer location and the data size,
- * as well as the user-space address for transferring data.
+ * @off:       Offset within the buffer where the read begins.
+ * @size:      Number of bytes to read.
+ * @user_addr: Pointer to user‑space destination buffer.
  */
-struct eba_rw_data {
-    __u64 buff_id;   
-    __u64 off;     
-    __u64 size;      
-    __u64 user_addr; 
+struct eba_read {
+    __u64 buffer_id;
+    __u64 offset;
+    __u64 size;
+    __u64 user_addr;
+};
+
+/**
+ * struct eba_rw_data - Structure for write operation via IOCTL.
+ * @buff_id:   Buffer identifier (virtual address returned by an allocation call).
+ * @off:       Offset within the buffer where the write begins.
+ * @size:      Number of bytes to write.
+ * @payload:   Pointer to the data payload to be written.
+ */
+struct eba_write {
+    __u64 buff_id;
+    __u64 offset;
+    __u64 size;
+    char *payload;
 };
 
 /**

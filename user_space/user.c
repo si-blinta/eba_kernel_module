@@ -45,7 +45,7 @@ int main(void)
       printf("Enter local_id and offset: ");
       if (scanf("%" SCNu64 " %" SCNu64, &local_id, &offset) != 2)
       {
-         fprintf(stderr, "Error reading remote_write numeric parameters.\n");
+         fprintf(stderr, "Error reading write numeric parameters.\n");
          return 1;
       }
       

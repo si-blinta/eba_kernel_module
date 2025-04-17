@@ -8,7 +8,11 @@
  * export node-specific data to disk. Additionally, test functions are provided to
  * verify the correctness of these operations.
  */
-#include <linux/types.h>
+
+#include "eba_internals.h"   
+#include "eba.h"             
+#include "ebp.h" 
+
 /**
  * eba_utils_file_to_buf - Read an entire file into a pre-allocated EBA buffer.
  * @filepath: Absolute path to the file on disk (e.g. "/var/lib/eba/somefile.eba").
