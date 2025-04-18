@@ -108,7 +108,7 @@
            /* Copy the remote alloc parameters from user space */
            if (copy_from_user(&ra, (void __user *)arg, sizeof(ra)))
                 return -EFAULT;
-           ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.mac);
+           ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id);
            break;
  
       case EBA_IOCTL_REMOTE_WRITE:
@@ -117,7 +117,7 @@
            /* Copy the remote write parameters from user space */
            if (copy_from_user(&rwr, (void __user *)arg, sizeof(rwr)))
                 return -EFAULT;
-           ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.mac);
+           ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id);
            break;
  
       case EBA_IOCTL_REMOTE_READ:
@@ -126,7 +126,7 @@
            /* Copy the remote read parameters from user space */
            if (copy_from_user(&rr, (void __user *)arg, sizeof(rr)))
                 return -EFAULT;
-           ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.mac);
+           ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id);
            break;
  
       case EBA_IOCTL_DISCOVER:

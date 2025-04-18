@@ -64,11 +64,11 @@ int eba_read(void* data_out, uint64_t buff_id, uint64_t off, uint64_t size);
  * @size:          The size (in bytes) of the requested buffer.
  * @life_time:     The life time for the allocation in seconds; 0 indicates "infinite".
  * @local_buff_id: The local buffer identifier where the remote buffer ID will be stored.
- * @mac:           The MAC address of the remote node.
+ * @node_id:    Target node id .
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
+int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id);
 
 /**
  * eba_remote_write - Write data to a remote allocated buffer via IOCTL.
@@ -76,11 +76,11 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,c
  * @offset:  The offset (in bytes) within the remote buffer where writing should begin.
  * @size:    The number of bytes of the payload to write.
  * @payload: Pointer to the data payload.
- * @mac:     The MAC address of the remote node.
+ * @node_id:    Target node id.
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
+int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id);
 
 /**
  * eba_remote_read - Read data from a remote allocated buffer via IOCTL.
@@ -89,11 +89,11 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @dst_offset:    The offset (in bytes) within the destination buffer where data should be written.
  * @src_offset:    The offset (in bytes) within the source buffer where reading begins.
  * @size:          The number of bytes to read.
- * @mac:           The MAC address of the remote node.
+ * @node_id:    Target node id.
  *
  * Return: 0 on success, or a negative error code on failure.
  */
-int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id);
 
 /**
  * eba_discover - Initiate remote node discovery from user space.

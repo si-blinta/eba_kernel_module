@@ -85,11 +85,11 @@ struct invoke_tracker {
  *
  * @args    Pointer to the raw arguments buffer.
  * @arg_len Length of the arguments in bytes.
- * @mac     Destination MAC address.
+ * @node_id:    Target node id.
  *
  * @Returns 0 on success, or a negative error code on failure.
  */
-typedef int (*ebp_op_t)(const void *args, uint64_t arg_len, const char mac[6]);
+typedef int (*ebp_op_t)(const void *args, uint64_t arg_len, uint16_t node_id);
 
 /**
  * struct op_entry - Represents an operation entry in the EBA protocol.
@@ -100,7 +100,7 @@ typedef int (*ebp_op_t)(const void *args, uint64_t arg_len, const char mac[6]);
  * implementations that process remote EBA operations.
  */
 struct op_entry {
-    uint32_t          op_id;
+    uint32_t   op_id;
     ebp_op_t  op_ptr;
     
 };
@@ -306,38 +306,38 @@ void ebp_exit(void);
  * ebp_op_alloc - Handle a remote buffer allocation request.
  * @args:    Pointer to the argument provided in the invoke packet.
  * @arg_len: Length of the argument.
- * @mac:     Destination MAC address of the invoking node.
+ * @node_id:    Target node id.
  *
  * This function processes a remote allocation request by parsing the provided
  * arguments and attempting to allocate a buffer accordingly.
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_alloc(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id);
 
 /**
  * ebp_op_write - Handle a remote write operation request.
  * @args:    Pointer to the argument from the invoke packet.
  * @arg_len: Length of the argument data.
- * @mac:     Destination MAC address of the invoking node.
+ * @node_id:    Target node id.
  *
  * This function processes a request to write data to a remote buffer.
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id);
 
 /**
  * ebp_op_read - Handle a remote read operation request.
  * @args:    Pointer to the argument blob from the invoke packet.
  * @arg_len: Length of the argument data.
- * @mac:     Destination MAC address of the invoking node.
+ * @node_id:    Target node id.
  *
  * This function processes a request to read data from a remote buffer.
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_op_read(const void *args, uint64_t arg_len,uint16_t node_id);
 
 /**
  * ebp_register_op - Register an EBA operation in the global op_entries array.
@@ -356,14 +356,14 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn);
  * @op_id:   Operation identifier to look up.
  * @args:    Pointer to the raw argument data.
  * @arg_len: Length of the argument data in bytes.
- * @mac:     Destination MAC address of the invoking node.
+ * @node_id:    Target node id.
  *
  * This function searches for the operation associated with the provided op_id and
  * calls the corresponding function.
  *
  * @return The return value of the invoked operation, or a negative error code if not found.
  */
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6]);
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id);
 
 /**
  * ebp_ops_init - Initialize and register the default EBA operations.
@@ -387,13 +387,13 @@ void print_op_entries(void);
  * @size:          Size of the buffer to allocate.
  * @life_time:     Lifetime of the buffer allocation.
  * @local_buff_id: Local buffer identifier where the allocated buffer's ID will be stored.
- * @mac:           MAC address of the remote node (to be modified to a node ID in the future).
+ * @node_id:    Target node id.
  *
  * This function sends a remote allocation request to a distant node.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,const char mac[6]/* TODO modify it to be come node*/);
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id);
 
 /**
  * ebp_remote_write - Write data to a remote pre-allocated buffer.
@@ -401,13 +401,13 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,c
  * @offset:  Byte offset in the remote buffer where writing should begin.
  * @size:    Size of the data payload to write.
  * @payload: Pointer to the data payload.
- * @mac:     MAC address of the remote node (to be modified to a node ID in the future).
+ * @node_id:    Target node id.
  *
  * This function sends a request to write data to a remote node's buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,const char mac[6]/* TODO modify it to be come node*/);
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id);
 
 /**
  * ebp_remote_read - Read data from a remote pre-allocated buffer into a local buffer.
@@ -416,13 +416,13 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @dst_offset:    Byte offset within the local buffer.
  * @src_offset:    Byte offset within the remote buffer where reading should start.
  * @size:          Number of bytes to read.
- * @mac:           MAC address of the remote node (to be modified to a node ID in the future).
+ * @node_id:    Target node id.
  *
  * This function sends a request to read data from a remote node's buffer into a local buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,const char mac[6]/* TODO modify it to be come node*/);
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id);
 
 /**
  * ebp_register_node - Register a new node in the global node_infos array.
@@ -475,7 +475,7 @@ int ebp_get_node_id_from_mac(const char mac[6]);
  *
  * Return: Pointer to MAC address on success, or NULL if not found
  */
-const unsigned char *ebp_get_mac_from_node_id(int node_id);
+const unsigned char *ebp_get_mac_from_node_id(uint16_t node_id);
 
 /**
  * ebp_get_mtu_from_node_id - Fetch MTU for a given node ID
@@ -528,7 +528,7 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
 int ebp_discover(void);
 /**
  * ebp_remote_write_fixed_mtu() - Send data in chunks constrained by a given MTU.
- * @mac:         The remote node's MAC address (does not need to be registered).
+ * @node_id:    The ID of the remote node.
  * @forced_mtu:  The caller-specified MTU to use for chunking.
  * @buff_id:     The remote buffer identifier to write into.
  * @total_size:  The total number of bytes in @payload.
@@ -539,7 +539,7 @@ int ebp_discover(void);
  *
  * Returns 0 on success, or a negative error code if any chunk fails.
  */
-int ebp_remote_write_fixed_mtu(const unsigned char *mac,uint16_t forced_mtu,uint64_t buff_id,uint64_t total_size,const char *payload);
+int ebp_remote_write_fixed_mtu(uint16_t node_id,uint16_t forced_mtu,uint64_t buff_id,uint64_t total_size,const char *payload);
 
 
 

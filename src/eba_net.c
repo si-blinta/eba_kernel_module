@@ -251,7 +251,7 @@ int send_discover_req_packet(uint16_t mtu, const unsigned char dest_mac[6],
     }
 
     kfree(packet);
-    EBA_INFO("send_discover_req_packet: Sent EBP_MSG_DISCOVER to %p via %s (MTU = %u)\n",
+    EBA_INFO("send_discover_req_packet: Sent EBP_MSG_DISCOVER to %pM via %s (MTU = %u)\n",
              dest_mac, ifname, mtu);
 
     return 0;
@@ -278,7 +278,7 @@ int send_discover_ack_packet(uint64_t buffer_id, const unsigned char dest_mac[6]
     }
 
     kfree(packet);
-    EBA_INFO("send_discover_ack_packet: Sent EBP_MSG_DISCOVER_ACK to %p via %s (buffer_id=%llu)\n",
+    EBA_INFO("send_discover_ack_packet: Sent EBP_MSG_DISCOVER_ACK to %pM via %s (buffer_id=%llu)\n",
              dest_mac, ifname, buffer_id);
 
     return 0;
@@ -312,7 +312,7 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
     }
 
     kfree(packet);
-    EBA_INFO("send_invoke_req_packet: Sent EBP_MSG_INVOKE (IID=%u, OPID=%u) to %p via %s\n",
+    EBA_INFO("send_invoke_req_packet: Sent EBP_MSG_INVOKE (IID=%u, OPID=%u) to %pM via %s\n",
              iid, opid, dest_mac, ifname);
 
     return 0;
@@ -341,7 +341,7 @@ int send_invoke_ack_packet(uint8_t status,
     }
 
     kfree(packet);
-    EBA_INFO("send_invoke_ack_packet: Sent EBP_MSG_INVOKE_ACK (status=0x%02x) to %p via %s\n",
+    EBA_INFO("send_invoke_ack_packet: Sent EBP_MSG_INVOKE_ACK (status=0x%02x) to %pM via %s\n",
              status, dest_mac, ifname);
 
     return 0;

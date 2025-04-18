@@ -77,6 +77,13 @@ int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packe
     return NET_RX_SUCCESS;
 }
 
+/**
+ * node_id_to_mac() - look up MAC for a node_id, or print an error.
+ * @node_id: the node index you want
+ *
+ * Return: pointer to 6‑byte MAC if found, or NULL (and an EBA_ERR()) if not.
+ */
+static const unsigned char *node_id_to_mac(uint16_t node_id);
 void ebp_init(void)
 {
     
@@ -221,7 +228,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn)
     return -ENOSPC;
 }
 
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char mac[6])
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len,uint16_t node_id)
 {
     int i;
     for (i = 0; i < MAX_OP_COUNT; i++)
@@ -229,7 +236,7 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, const char
         if (op_entries[i].op_id == op_id)
         {
             EBA_INFO("Found op_id %u in slot %d, calling handler...\n", op_id, i);
-            return op_entries[i].op_ptr(args, arg_len, mac);
+            return op_entries[i].op_ptr(args, arg_len, node_id);
         }
     }
     EBA_ERR("ebp_invoke_op: No matching op_id %u found\n", op_id);
@@ -248,7 +255,7 @@ int ebp_ops_init(void)
     return ret;
 }
 
-int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id)
 {
     /* Check that args is not NULL and that its is large enough for our fixed-size header */
     if (!args || arg_len < sizeof(struct ebp_op_write_args))
@@ -256,7 +263,11 @@ int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6])
         EBA_ERR("ebp_op_write: invalid arg_len %llu (must be >= %zu) or null pointer %p\n", arg_len, sizeof(struct ebp_op_write_args), args);
         return -EINVAL;
     }
-
+    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    if(!dest_mac)
+    {
+        return -EINVAL;
+    }
     const struct ebp_op_write_args *wr = args;
     uint64_t header_size = sizeof(struct ebp_op_write_args);
 
@@ -270,11 +281,11 @@ int ebp_op_write(const void *args, uint64_t arg_len, const char mac[6])
     const uint8_t *payload = (const uint8_t *)args + header_size;
 
     EBA_INFO("ebp_op_write: buff_id = %llx offset = %llu size = %llu\n", wr->buff_id, wr->offset, wr->size);
-    send_invoke_ack_packet(INVOKE_QUEUED, mac, "enp0s8");
+    send_invoke_ack_packet(INVOKE_QUEUED,dest_mac, "enp0s8");
     return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
 }
 
-int ebp_op_alloc(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id)
 {
     if (!args || arg_len < sizeof(struct ebp_op_alloc_args))
     {
@@ -294,10 +305,10 @@ int ebp_op_alloc(const void *args, uint64_t arg_len, const char mac[6])
         return -ENOMEM;
     }
     uint64_t buf_id = (uint64_t)new_buf;
-    ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, mac);
+    ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, node_id);
     return 0;
 }
-int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6])
+int ebp_op_read(const void *args, uint64_t arg_len, uint16_t node_id)
 {
     /* Verify that a valid argument is provided and that it's at least as large as our header. */
     if (!args || arg_len < sizeof(struct ebp_op_read_args))
@@ -319,7 +330,7 @@ int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6])
         kfree(read_data);
         return ret;
     }
-    ret = ebp_remote_write(rd_args->dst_buffer_id, rd_args->dst_offset, rd_args->size, (const char *)read_data, mac);
+    ret = ebp_remote_write(rd_args->dst_buffer_id, rd_args->dst_offset, rd_args->size, (const char *)read_data, node_id);
     if (ret < 0)
     {
         EBA_ERR("ebp_op_read: ebp_remote_write() failed with error %d\n", ret);
@@ -332,14 +343,19 @@ int ebp_op_read(const void *args, uint64_t arg_len, const char mac[6])
 
     return 0;
 }
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, const char mac[6] /* TODO modify it to be come node*/)
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id)
 {
     struct ebp_op_alloc_args alloc_args = {
         .size = size,
         .life_time = life_time,
         .buffer_id = local_buff_id};
 
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, mac, "enp0s8");
+    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    if(!dest_mac)
+    {
+        return -EINVAL;
+    }
+    int ret = send_invoke_req_packet(0x1234, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, "enp0s8");
     if (ret < 0)
     {
         EBA_ERR("ebp_remote_alloc: send_invoke_req_packet() failed with error %d\n", ret);
@@ -350,14 +366,19 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
     return 0;
 }
 
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, const char mac[6] /* TODO modify it to be come node*/)
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, uint16_t node_id)
 {
     struct ebp_op_write_args write_args = {
         .buff_id = buff_id,
         .offset = offset,
         .size = size};
-
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size, mac, "enp0s8");
+    
+    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    if(!dest_mac)
+    {
+        return -EINVAL;
+    }
+    int ret = send_invoke_req_packet(0x1234, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , "enp0s8");
     if (ret < 0)
     {
         EBA_ERR("ebp_remote_write: send_invoke_req_packet() failed with error %d\n", ret);
@@ -367,7 +388,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
     return 0;
 }
 
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, const char mac[6] /* TODO modify it to be come node*/)
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id)
 {
     struct ebp_op_read_args read_args = {
         .dst_buffer_id = dst_buffer_id,
@@ -375,8 +396,13 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
         .dst_offset = dst_offset,
         .src_offset = src_offset,
         .size = size};
-
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, mac, "enp0s8");
+    
+    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    if(!dest_mac)
+    {
+        return -EINVAL;
+    }
+    int ret = send_invoke_req_packet(0x1234, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, "enp0s8");
     if (ret < 0)
     {
         EBA_ERR("ebp_remote_read: send_invoke_req_packet() failed with error %d\n", ret);
@@ -445,7 +471,7 @@ int ebp_get_node_id_from_mac(const char mac[6])
     return -1; /* Not found */
 }
 
-const unsigned char *ebp_get_mac_from_node_id(int node_id)
+const unsigned char *ebp_get_mac_from_node_id(uint16_t node_id)
 {
     int i;
     for (i = 0; i < MAX_NODE_COUNT; i++)
@@ -455,6 +481,7 @@ const unsigned char *ebp_get_mac_from_node_id(int node_id)
             return node_infos[i].mac;
         }
     }
+    EBA_ERR("ebp_get_mac_from_node_id: node not found\n");
     return NULL; /* Not found */
 }
 
@@ -502,7 +529,6 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
     int ret = 0;
     uint16_t mtu;
     uint64_t offset = 0;
-    const unsigned char *dest_mac;
     /* Retrieve the MTU for the specified node and substract the header size xd xd xd xd , take the min of the local node mtu and the remote one TODO */
     uint16_t remote_mtu = ebp_get_mtu_from_node_id(node_id);
     uint16_t local_mtu = eba_net_get_current_mtu("enp0s8");
@@ -511,13 +537,6 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
     if (mtu <= 0)
     {
         EBA_ERR("ebp_remote_write_mtu: Invalid MTU retrieved for node %d\n", node_id);
-        return -EINVAL;
-    }
-    /* Get the destination MAC address for the node */
-    dest_mac = ebp_get_mac_from_node_id(node_id);
-    if (!dest_mac)
-    {
-        EBA_ERR("ebp_remote_write_mtu: No MAC found for node %d\n", node_id);
         return -EINVAL;
     }
 
@@ -529,7 +548,7 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
         if (segment_size > mtu)
             segment_size = mtu;
 
-        ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, dest_mac);
+        ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, node_id);
         if (ret < 0)
         {
             EBA_ERR("ebp_remote_write_mtu: ebp_remote_write failed at offset %llu, ret=%d\n", offset, ret);
@@ -554,12 +573,12 @@ int ebp_discover(void)
     return send_discover_req_packet((uint16_t)mtu, mac, "enp0s8");
 }
 
-int ebp_remote_write_fixed_mtu(const unsigned char *mac, uint16_t forced_mtu, uint64_t buff_id,
+int ebp_remote_write_fixed_mtu(uint16_t node_id, uint16_t forced_mtu, uint64_t buff_id,
                                uint64_t total_size, const char *payload)
 {
     const uint16_t overhead = sizeof(struct ebp_invoke_req) + MTU_OVERHEAD;
 
-    if (!mac || !payload)
+    if (!payload)
     {
         EBA_ERR("ebp_remote_write_fixed_mtu: mac or payload is NULL\n");
         return -EINVAL;
@@ -580,12 +599,10 @@ int ebp_remote_write_fixed_mtu(const unsigned char *mac, uint16_t forced_mtu, ui
         uint64_t remaining = total_size - offset;
         uint64_t segment_size = (remaining < chunk_size) ? remaining : chunk_size;
 
-        int ret = ebp_remote_write(buff_id, offset, segment_size,
-                                   payload + offset, mac);
+        int ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, node_id);
         if (ret < 0)
         {
-            EBA_ERR("ebp_remote_write_fixed_mtu: ebp_remote_write() failed at offset=%llu, ret=%d\n",
-                    offset, ret);
+            EBA_ERR("ebp_remote_write_fixed_mtu: ebp_remote_write() failed at offset=%llu, ret=%d\n", offset, ret);
             return ret;
         }
 
@@ -669,7 +686,7 @@ int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,
     if (node_id < 0) {
 
         EBA_WARN("ebp_handle_discover_ack: unknown node, using MINIMAL_MTU\n");
-        rc = ebp_remote_write_fixed_mtu(eth->h_source,MINIMAL_MTU,buff_id,EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
+        rc = ebp_remote_write_fixed_mtu(node_id,MINIMAL_MTU,buff_id,EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
     } 
     else {
         
@@ -699,7 +716,7 @@ int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
 
     EBA_INFO("ebp_handle_invoke: IID=%u OpID=%u args_len=%llu\n", iid, opid, args_len);
 
-    rc = ebp_invoke_op(opid, inv->args, args_len, eth->h_source);
+    rc = ebp_invoke_op(opid, inv->args, args_len, ebp_get_node_id_from_mac(eth->h_source));
     if (rc < 0) {
         EBA_ERR("ebp_handle_invoke: ebp_invoke_op failed, rc=%d\n", rc);
         rc = NET_RX_DROP;
@@ -760,4 +777,13 @@ int ebp_process_skb(struct sk_buff *skb,struct net_device *dev)
         kfree_skb(skb);
         return NET_RX_DROP;
     }
+}
+
+static const unsigned char *node_id_to_mac(uint16_t node_id)
+{
+    const unsigned char *mac = ebp_get_mac_from_node_id(node_id);
+    if (!mac) {
+        EBA_ERR("node_id_to_mac: invalid node_id=%u\n", node_id);
+    }
+    return mac;
 }

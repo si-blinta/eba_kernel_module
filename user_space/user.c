@@ -1,172 +1,179 @@
 #include <stdio.h>
-#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
-#include "../include/eba_user.h"
-char mac[6] = {0x00,0x00,0x00,0x00,0x00,0x02};
-//if node 2
-//char mac[6] = {0x00,0x00,0x00,0x00,0x00,0x01};
-int main(void)
-{
-   char command[32];
+#include <stdint.h>
+#include "eba_user.h"
 
-   printf("Enter command (alloc, write, read, remote_alloc, remote_write, remote_read, discover, export, get_node_infos): ");
-   if (scanf("%31s", command) != 1)
-   {
-      fprintf(stderr, "Error reading command.\n");
-      return 1;
-   }
+#define MAX_LINE 512
+#define MAX_TOKENS 16
 
-   if (strcmp(command, "alloc") == 0)
-   {
-      // "alloc" takes no arguments, just print a message.
-      uint64_t size = 0;
-      printf("Enter size: ");
-      if (scanf("%" SCNu64, &size) != 1)
-      {
-         fprintf(stderr, "Error reading 64-bit unsigned integer.\n");
-         return 1;
-      }
-      uint64_t lifetime = 0;
-      printf("Enter lifetime: ");
-      if (scanf("%" SCNu64, &lifetime) != 1)
-      {
-         fprintf(stderr, "Error reading 64-bit unsigned integer.\n");
-         return 1;
-      }
-      printf("Parameters read: size = %" PRIu64 ", lifetime = %" PRIu64 "\n", size, lifetime);
-      uint64_t local_id = eba_alloc(size, lifetime, 0);
-      printf("Returned buffer id = %" PRIu64 "\n", local_id);
-   }
-   else if (strcmp(command, "write") == 0)
-   {
-      uint64_t local_id, offset;
-      char userString[256];
-      printf("Enter local_id and offset: ");
-      if (scanf("%" SCNu64 " %" SCNu64, &local_id, &offset) != 2)
-      {
-         fprintf(stderr, "Error reading write numeric parameters.\n");
-         return 1;
-      }
-      
-      printf("Enter string: ");
-      if (scanf(" %[^\n]", userString) != 1)
-      {
-         fprintf(stderr, "Error reading string.\n");
-         return 1;
-      }
-      uint64_t len = strlen(userString);
-      printf("Parameters read: local_id = %" PRIu64 ", offset = %" PRIu64 ", string = \"%s\", length = %zu\n",  local_id, offset, userString, len);
-      eba_write(userString, local_id, offset, len);
-   }
-   else if (strcmp(command, "read") == 0)
-   {
-      uint64_t local_id, offset,size;
-      printf("Enter local_id and offset and size: ");
-      if (scanf("%" SCNu64 " %" SCNu64 " %" SCNu64, &local_id, &offset,&size) != 3)
-      {
-         fprintf(stderr, "Error reading remote_write numeric parameters.\n");
-         return 1;
-      }
-      char read[256];
-      printf("Parameters read: local_id = %" PRIu64 ", offset = %" PRIu64 ", size = %" PRIu64 "\n", local_id, offset, size);
-      eba_read(read,local_id,offset,size);
-      
-      printf("Read (hex dump): ");
-      for (uint64_t i = 0; i < size; i++) {
-         printf("%02x ", (unsigned char)read[i]);
-      }
-      printf("\n");
-      printf("Read (as chars): ");
-      for (uint64_t i = 0; i < size; i++) {
-         printf("%c",read[i]);
-      }
-      printf("\n");
-      if(size == 8) {
-         uint64_t value;
-         memcpy(&value, read, sizeof(uint64_t));
-         printf("Read (uint64_t): %" PRIu64 "\n", value);
-      }   
-      printf("\n");
-   }
-   else if (strcmp(command, "remote_alloc") == 0)
-   {
-      uint64_t id, size, life_time;
-      printf("Enter local id, size and life_time (each as a 64-bit unsigned integer): ");
-      if (scanf("%" SCNu64 " %" SCNu64 " %" SCNu64, &id, &size, &life_time) != 3)
-      {
-         fprintf(stderr, "Error reading remote_alloc parameters.\n");
-         return 1;
-      }
-      printf("Parameters read: local_id = %" PRIu64 ", size = %" PRIu64 ", life_time = %" PRIu64 "\n",id, size, life_time);
-      eba_remote_alloc(size,life_time,id,mac);
-   }
-   else if (strcmp(command, "remote_write") == 0)
-   {
-      uint64_t remote_id, offset;
-      char userString[256];
-      printf("Enter remote_id and offset (each as a 64-bit unsigned integer): ");
-      if (scanf("%" SCNu64 " %" SCNu64, &remote_id, &offset) != 2)
-      {
-         fprintf(stderr, "Error reading remote_write numeric parameters.\n");
-         return 1;
-      }
-      printf("Enter string: ");
-      if (scanf(" %[^\n]", userString) != 1)
-      {
-         fprintf(stderr, "Error reading remote_write string.\n");
-         return 1;
-      }
-      uint64_t len = strlen(userString);
-      printf("Parameters read: remote_id = %" PRIu64 ", offset = %" PRIu64 ", string = \"%s\", length = %zu\n",remote_id, offset, userString, len);
-      eba_remote_write(remote_id,offset,len,userString,mac);
-         
-   }
-   else if (strcmp(command, "remote_read") == 0)
-   {
-      uint64_t local_id, remote_id, local_offset, remote_offset, size;
-      printf("Enter local_id, remote_id, local_offset, remote_offset and size (each as a 64-bit unsigned integer): ");
-      if (scanf("%" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64,
-                &local_id, &remote_id, &local_offset, &remote_offset, &size) != 5)
-      {
-         fprintf(stderr, "Error reading remote_read parameters.\n");
-         return 1;
-      }
-      printf("Parameters read: local_id = %" PRIu64 ", remote_id = %" PRIu64 ", local_offset = %" PRIu64 ", remote_offset = %" PRIu64 ", size = %" PRIu64 "\n",local_id, remote_id, local_offset, remote_offset, size);
-      eba_remote_read(local_id,remote_id,local_offset,remote_offset,size,mac);
-   }
-   else if (strcmp(command, "discover") == 0)
-   {  
-      eba_discover();
-      printf("Broadcasted discover message\n");
-   }
-   else if (strcmp(command, "export") == 0)
-   {  
-      eba_export_node_specs();
-      printf("Exported node specs\n");
-   }
-   else if (strcmp(command, "get_node_infos") == 0) {
-      struct eba_node_info infos[MAX_NODE_COUNT];
-      memset(infos,0,sizeof(infos));
-      uint64_t count = 0;
-      if (eba_get_node_infos(infos, &count) < 0) {
-          fprintf(stderr, "Failed to fetch node infos\n");
-          return 1;
-      }
-      printf("Found %zu node(s):\n", count);
-      for (uint64_t i = 0; i < count; i++) {
-          unsigned char *m = infos[i].mac;
-          printf("  NodeID=%u  MTU=%u  MAC=%02x:%02x:%02x:%02x:%02x:%02x  specs=%llu\n",
-                 infos[i].id,
-                 infos[i].mtu,
-                 m[0], m[1], m[2], m[3], m[4], m[5],
-                 (unsigned long long)infos[i].node_specs);
-      }
-  }
-   else
-   {
-      printf("Unknown command.\n");
-   }
+/* Reads a line from stdin, returns NULL on EOF */
+static char *read_line(char *buf, size_t sz) {
+    if (!fgets(buf, sz, stdin))
+        return NULL;
+    size_t l = strlen(buf);
+    if (l && buf[l-1]=='\n') buf[l-1]='\0';
+    return buf;
+}
 
-   return 0;
+/* Splits line into tokens (whitespace delimited), returns count */
+static int tokenize(char *line, char *tokens[], int max) {
+    int n = 0;
+    char *p = strtok(line, " \t");
+    while (p && n < max) {
+        tokens[n++] = p;
+        p = strtok(NULL, " \t");
+    }
+    return n;
+}
+
+int main(void) {
+    char line[MAX_LINE];
+    char *tok[MAX_TOKENS];
+    int  ntoks;
+
+    printf("Welcome to eba-shell! Type 'help' for commands, 'exit' to quit.\n");
+    while (1) {
+        printf("eba> ");
+        if (!read_line(line, sizeof(line)))
+            break;
+
+        ntoks = tokenize(line, tok, MAX_TOKENS);
+        if (ntoks == 0) 
+            continue;
+
+        if (strcmp(tok[0], "exit")==0 || strcmp(tok[0], "quit")==0) {
+            break;
+        }
+        else if (strcmp(tok[0], "help")==0) {
+            puts(
+            "Commands:\n"
+            "  alloc <size> <lifetime>\n"
+            "  write <buf_id> <offset> <string>\n"
+            "  read  <buf_id> <offset> <size>\n"
+            "  remote_alloc <node_id> <local_id> <size> <lifetime>\n"
+            "  remote_write <node_id> <buf_id> <offset> <string>\n"
+            "  remote_read  <node_id> <dst_id> <src_id> <dst_off> <src_off> <size>\n"
+            "  discover\n"
+            "  export\n"
+            "  get_node_infos\n"
+            "  exit\n"
+            );
+        }
+        else if (strcmp(tok[0], "alloc")==0 && ntoks==3) {
+            uint64_t size     = strtoull(tok[1], NULL, 0);
+            uint64_t lifetime = strtoull(tok[2], NULL, 0);
+            printf("Allocating %llu @ lifetime %llu…\n",
+                   (unsigned long long)size, (unsigned long long)lifetime);
+            uint64_t bid = eba_alloc(size, lifetime, 0);
+            printf("  -> buffer_id = %llu\n", (unsigned long long)bid);
+        }
+        else if (strcmp(tok[0], "write")==0 && ntoks>=4) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            uint64_t offset = strtoull(tok[2], NULL, 0);
+            /* reconstruct string from tokens[3..] */
+            char *str = tok[3];
+            for (int i=4;i<ntoks;i++){
+                strcat(str, " ");
+                strcat(str, tok[i]);
+            }
+            size_t len = strlen(str);
+            printf("Writing '%s' (%zu bytes) to buf %llu@%llu\n",
+                   str, len,
+                   (unsigned long long)buf_id,
+                   (unsigned long long)offset);
+            eba_write(str, buf_id, offset, len);
+        }
+        else if (strcmp(tok[0], "read")==0 && ntoks==4) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            uint64_t offset = strtoull(tok[2], NULL, 0);
+            uint64_t size   = strtoull(tok[3], NULL, 0);
+            char out[1024]  = {0};
+            printf("Reading %llu bytes from buf %llu@%llu\n",(unsigned long long)size,(unsigned long long)buf_id,(unsigned long long)offset);
+            eba_read(out,buf_id,offset,size);
+            printf(" Hex:");
+            for (uint64_t i=0;i<size && i<256;i++)
+                printf(" %02x", (unsigned char)out[i]);
+            printf("\n");
+            printf(" Txt:\"%.*s\"\n", (int)size, out);
+            uint64_t addr;
+            memcpy(&addr,out,8);
+            printf("Uint64_t: %lu\n",addr);
+        }
+        else if (strcmp(tok[0], "remote_alloc")==0 && ntoks==5) {
+            uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
+            uint64_t local_id= strtoull(tok[2], NULL, 0);
+            uint64_t size    = strtoull(tok[3], NULL, 0);
+            uint64_t lifetime= strtoull(tok[4], NULL, 0);
+            printf("Remote alloc on node %u: local_id=%llu size=%llu lifetime=%llu\n",
+                   node_id,
+                   (unsigned long long)local_id,
+                   (unsigned long long)size,
+                   (unsigned long long)lifetime);
+            eba_remote_alloc(size,lifetime,local_id,node_id);
+        }
+        else if (strcmp(tok[0], "remote_write")==0 && ntoks>=5) {
+            uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
+            uint64_t buf_id  = strtoull(tok[2], NULL, 0);
+            uint64_t offset  = strtoull(tok[3], NULL, 0);
+            char *str = tok[4];
+            for (int i=5;i<ntoks;i++){
+                strcat(str, " ");
+                strcat(str, tok[i]);
+            }
+            size_t len = strlen(str);
+            printf("Remote write to node %u buf %llu@%llu '%s' (%zu bytes)\n",
+                   node_id,
+                   (unsigned long long)buf_id,
+                   (unsigned long long)offset,
+                   str, len);
+            eba_remote_write(buf_id,offset,len,str,node_id);
+        }
+        else if (strcmp(tok[0], "remote_read")==0 && ntoks==7) {
+            uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
+            uint64_t dst_id  = strtoull(tok[2], NULL, 0);
+            uint64_t src_id  = strtoull(tok[3], NULL, 0);
+            uint64_t dst_off = strtoull(tok[4], NULL, 0);
+            uint64_t src_off = strtoull(tok[5], NULL, 0);
+            uint64_t size    = strtoull(tok[6], NULL, 0);
+            printf("Remote read node %u src %llu@%llu → dst %llu@%llu size=%llu\n",
+                   node_id,
+                   (unsigned long long)src_id,
+                   (unsigned long long)src_off,
+                   (unsigned long long)dst_id,
+                   (unsigned long long)dst_off,
+                   (unsigned long long)size);
+            eba_remote_read(dst_id,src_id,dst_off,src_off,size,node_id);
+        }
+        else if (strcmp(tok[0], "discover")==0) {
+            eba_discover();
+            puts("Sent discover broadcast.");
+        }
+        else if (strcmp(tok[0], "export")==0) {
+            eba_export_node_specs();
+            puts("Exported node specs.");
+        }
+        else if (strcmp(tok[0], "get_node_infos")==0) {
+            struct eba_node_info infos[MAX_NODE_COUNT];
+            uint64_t count = 0;
+            if (eba_get_node_infos(infos, &count) < 0) {
+                fprintf(stderr,"Failed to get node infos\n");
+                continue;
+            }
+            printf("Known %llu node(s):\n", (unsigned long long)count);
+            for (uint64_t i=0;i<count;i++) {
+                unsigned char *m = infos[i].mac;
+                printf("  NodeID=%u MTU=%u MAC=%02x:%02x:%02x:%02x:%02x:%02x specs=%llu\n",
+                       infos[i].id, infos[i].mtu,
+                       m[0],m[1],m[2],m[3],m[4],m[5],
+                       (unsigned long long)infos[i].node_specs);
+            }
+        }
+        else {
+            printf("Unknown or malformed command. Type 'help' for list.\n");
+        }
+    }
+
+    printf("Goodbye.\n");
+    return 0;
 }

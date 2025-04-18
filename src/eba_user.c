@@ -99,7 +99,7 @@ int eba_read(void *data_out, uint64_t buf_id, uint64_t off, uint64_t size)
 
 
 int eba_remote_alloc(uint64_t size, uint64_t life_time,
-                     uint64_t local_buff_id, const char mac[6] /* TODO modify it to become node id */)
+                     uint64_t local_buff_id, uint16_t node_id)
 {
     int fd, ret;
     struct eba_remote_alloc remote;
@@ -109,9 +109,7 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time,
     remote.size = size;
     remote.life_time = life_time;
     remote.buffer_id = local_buff_id;
-
-    /* copy the mac address into the struct */
-    memcpy((void *)remote.mac, mac, 6);
+    remote.node_id = node_id;
 
     fd = open_eba_device();
     if (fd < 0)
@@ -128,7 +126,7 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time,
 }
 
 int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
-                     const char *payload, const char mac[6] /* TODO modify it to become node id */)
+                     const char *payload, uint16_t node_id)
 {
     int fd, ret;
     struct eba_remote_write remote;
@@ -139,12 +137,9 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
     remote.offset = offset;
     remote.size = size;
     remote.payload = (char*) payload;
-
+    remote.node_id = node_id;
     /* copy the payload into the struct and the mac address */
     memcpy((void *)remote.payload, payload, remote.size);
-
-    /* copy the mac address into the struct */
-    memcpy((void *)remote.mac, mac, 6);
 
     fd = open_eba_device();
     if (fd < 0)
@@ -161,7 +156,7 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
     return 0;
 }
 
-int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, const char mac[6] /* TODO modify it to be come node*/)
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size,uint16_t node_id )
 {
     int fd, ret;
     struct eba_remote_read remote;
@@ -173,7 +168,7 @@ int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     remote.dst_offset = dst_offset;
     remote.src_offset = src_offset;
     remote.size = size;
-    memcpy((void *)remote.mac, mac, 6);
+    remote.node_id = node_id;
 
     fd = open_eba_device(); 
     if (fd < 0)

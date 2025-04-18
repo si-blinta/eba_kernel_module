@@ -155,18 +155,15 @@ struct eba_write {
  * @size:       Number of bytes to allocate on the remote node.
  * @life_time:  Lifetime for the remote buffer allocation in seconds.
  * @buffer_id:  Buffer id that will store the remotely allocated buffer.
- * @mac:        MAC address of the remote node.
+ * @node_id:    Target node id .
  *
  * This structure is used to request a buffer allocation on a remote node.
- * The MAC address field identifies the target node. 
- * 
- * @note TODO: Modify this field to use a node ID instead of a MAC address.
  */
 struct eba_remote_alloc{
     __u64 size;      
     __u64 life_time; 
     __u64 buffer_id;
-    const char mac[6];
+    __u16 node_id;
 };
 
 /**
@@ -175,19 +172,18 @@ struct eba_remote_alloc{
  * @offset:   Offset within the remote buffer where the write operation should begin.
  * @size:     Number of bytes to write.
  * @payload:  Pointer to the data payload to be written.
- * @mac:      MAC address of the remote node.
+ * @node_id:    Target node id .
  *
  * This structure is used to send a write request to a remote node by specifying the target
  * buffer, the offset within that buffer, and the data to be written.
- * 
- * @note TODO: Modify the MAC address field to use a node ID instead.
  */
 struct eba_remote_write{
     __u64 buff_id;      
     __u64 offset; 
     __u64 size;
     char* payload;
-    const char mac[6];
+    __u16 node_id;
+    
 };
 
 /**
@@ -197,13 +193,11 @@ struct eba_remote_write{
  * @dst_offset:    Offset within the destination buffer where the data should be written.
  * @src_offset:    Offset within the source buffer where the reading should begin.
  * @size:          Number of bytes to read.
- * @mac:           MAC address of the remote node.
+ * @node_id:    Target node id .
  *
  * This structure is used to request a read operation from a remote node. It specifies
  * both the source (remote) buffer and the destination (local) buffer along with the respective
  * offsets and the size of data to be transferred.
- *
- * @note TODO: Modify the MAC address field to use a node ID instead.
  */
 struct eba_remote_read {
     __u64 dst_buffer_id;
@@ -211,7 +205,8 @@ struct eba_remote_read {
     __u64 dst_offset;
     __u64 src_offset;
     __u64 size;
-    const char mac[6];
+    __u16 node_id;
+    
 };
 
 /**
