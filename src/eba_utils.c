@@ -11,12 +11,13 @@ int eba_utils_file_to_buf(const char *filepath, uint64_t buff_id)
     char *kbuf = NULL;
     ssize_t bytes_read;
     int ret = 1; /* default to error */
+    EBA_DBG("%s: filepath=\"%s\" buff_id=%llu\n",__func__, filepath, buff_id);
 
     /* Open the file read-only */
     filp = filp_open(filepath, O_RDONLY, 0);
     if (IS_ERR(filp))
     {
-        EBA_ERR("Failed to open file %s, err=%ld\n", filepath, PTR_ERR(filp));
+        EBA_ERR("%s: filp_open(\"%s\") failed: %ld\n",__func__, filepath, PTR_ERR(filp));
         return 1;
     }
 
@@ -24,7 +25,7 @@ int eba_utils_file_to_buf(const char *filepath, uint64_t buff_id)
     file_size = i_size_read(file_inode(filp));
     if (file_size <= 0)
     {
-        EBA_ERR("File %s is empty or error reading size\n", filepath);
+        EBA_ERR("%s: \"%s\" empty or size=%lld\n",__func__, filepath, file_size);
         goto out_close;
     }
 
@@ -32,7 +33,7 @@ int eba_utils_file_to_buf(const char *filepath, uint64_t buff_id)
     kbuf = kmalloc(file_size, GFP_KERNEL);
     if (!kbuf)
     {
-        EBA_ERR("Failed to allocate temp buffer\n");
+        EBA_ERR("%s: kmalloc(%lld) failed\n",__func__, file_size);
         goto out_close;
     }
 
@@ -40,20 +41,18 @@ int eba_utils_file_to_buf(const char *filepath, uint64_t buff_id)
     bytes_read = kernel_read(filp, kbuf, file_size, &pos);
     if (bytes_read < 0 || bytes_read != file_size)
     {
-        EBA_ERR("Failed to read entire file %s, bytes_read=%zd\n",
-                filepath, bytes_read);
+        EBA_ERR("%s: kernel_read(\"%s\"): %zd/%lld\n",__func__, filepath, bytes_read, file_size);
         goto out_free;
     }
 
     /* Write that data into the EBA buffer buff_id at offset=0 */
     if (eba_internals_write(kbuf, buff_id, 0, file_size) < 0)
     {
-        EBA_ERR("eba_internals_write() failed for file %s\n", filepath);
+        EBA_ERR("%s: eba_internals_write(buf=%llu) failed: %d\n",__func__, buff_id, ret);
         goto out_free;
     }
 
-    EBA_INFO("Read %lld bytes from file %s into EBA buffer %llu\n",
-             file_size, filepath, buff_id);
+    EBA_INFO("%s: loaded %lld bytes from \"%s\" into buf %llu\n",__func__, file_size, filepath, buff_id);
     ret = 0; /* success */
 
 out_free:
@@ -70,23 +69,26 @@ int eba_utils_buf_to_file(uint64_t buff_id, uint64_t size, const char *filepath)
     char *kbuf = NULL;
     ssize_t bytes_written;
     int ret;
-
+    EBA_DBG("%s: buf_id=%llu size=%llu filepath=\"%s\"\n",__func__, buff_id, size, filepath);
     if (size == 0)
     {
-        EBA_ERR("eba_utils_buf_to_file: zero size, nothing to write\n");
+        EBA_WARN("%s: size=0, nothing to write\n", __func__);
         return -EINVAL;
     }
 
     /* Allocate a kernel buffer of 'size' to read from EBA */
     kbuf = kmalloc(size, GFP_KERNEL);
     if (!kbuf)
+    {
+        EBA_ERR("%s: kmalloc(%llu) failed\n", __func__, size);
         return -ENOMEM;
+    }
 
     /* Read from EBA buffer into kbuf */
     ret = eba_internals_read(kbuf, buff_id, 0, size);
     if (ret < 0)
     {
-        EBA_ERR("eba_internals_read() failed on buff_id %llu\n", buff_id);
+        EBA_ERR("%s: eba_internals_read(buf=%llu) failed: %d\n",__func__, buff_id, ret);
         goto out_free;
     }
 
@@ -94,8 +96,7 @@ int eba_utils_buf_to_file(uint64_t buff_id, uint64_t size, const char *filepath)
     filp = filp_open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (IS_ERR(filp))
     {
-        EBA_ERR("Failed to open file %s for writing, err=%ld\n",
-                filepath, PTR_ERR(filp));
+        EBA_ERR("%s: filp_open(\"%s\") failed: %ld\n",__func__, filepath, PTR_ERR(filp));
         ret = PTR_ERR(filp);
         filp = NULL;
         goto out_free;
@@ -105,8 +106,7 @@ int eba_utils_buf_to_file(uint64_t buff_id, uint64_t size, const char *filepath)
     bytes_written = kernel_write(filp, kbuf, size, &pos);
     if (bytes_written < 0 || bytes_written != size)
     {
-        EBA_ERR("Failed to write entire buffer to file %s, bytes_written=%zd\n",
-                filepath, bytes_written);
+        EBA_ERR("%s: kernel_write(\"%s\"): %zd/%llu\n",__func__, filepath, bytes_written, size);
         if (bytes_written >= 0)
             ret = -EIO;
         else
@@ -114,10 +114,11 @@ int eba_utils_buf_to_file(uint64_t buff_id, uint64_t size, const char *filepath)
         goto out_close;
     }
 
-    EBA_INFO("Wrote %llu bytes from EBA buffer %llu to file %s\n",
-             size, buff_id, filepath);
+    EBA_INFO("%s: wrote %llu bytes from buf %llu to \"%s\"\n",__func__, size, buff_id, filepath);
     ret = 0; /* success */
-    print_hex_dump(KERN_INFO, "EBA BUF DUMP: ", DUMP_PREFIX_OFFSET, 16, 1, kbuf, size, true);
+    EBA_DBG("%s: hex dump of buf %llu:\n", __func__, buff_id);
+    print_hex_dump(KERN_DEBUG, "EBA-DBG: ", DUMP_PREFIX_OFFSET, 16, 1,
+                   kbuf, size, true);
 out_close:
     if (filp)
         filp_close(filp, NULL);
@@ -129,7 +130,7 @@ out_free:
 int eba_export_node_specs(void)
 {
     char filepath[256];
-    EBA_INFO("Exporting node_specs buffers to files...\n");
+    EBA_INFO("%s: exporting %d node_specs buffers\n",__func__, nodes_count);
 
     for (int i = 0; i < MAX_NODE_COUNT; i++)
     {
@@ -137,10 +138,11 @@ int eba_export_node_specs(void)
         {
             /* Build the path like "/var/lib/eba/node_2_specs" */
             snprintf(filepath, sizeof(filepath), "/var/lib/eba/node_%hu_specs", node_infos[i].id);
+            EBA_DBG("%s: dumping node %hu buf %llu -> \"%s\"\n",__func__,node_infos[i].id,node_infos[i].node_specs,filepath);
             /* Dump the entire buffer to that file */
             if (eba_utils_buf_to_file(node_infos[i].node_specs, EBP_NODE_SPECS_MAX_SIZE, filepath) < 0)
             {
-                EBA_ERR("eba_export_node_specs: eba_utils_buf_to_file failed, iteration : %d\n", i);
+                EBA_ERR("%s: failed on slot %d\n", __func__, i);
                 return -1;
             }
         }
@@ -154,13 +156,13 @@ int test_eba_utils_file_to_buf(void)
     int ret;
     char tmpbuf[64]; /* small stack buffer to read/print a piece of data */
 
-    EBA_INFO("=== test_eba_utils_file_to_buf: START ===\n");
+    EBA_INFO("%s: START\n", __func__);
 
     /* 1. Allocate a buffer of 512 bytes with no expiration (lifetime=0). */
     buff_id = eba_internals_malloc(512, 0);
     if (!buff_id)
     {
-        EBA_ERR("Failed to allocate EBA buffer in test_eba_utils_file_to_buf\n");
+        EBA_ERR("%s: malloc(512) failed\n", __func__);
         return 1;
     }
 
@@ -170,7 +172,7 @@ int test_eba_utils_file_to_buf(void)
     ret = eba_utils_file_to_buf("/tmp/test_input", (uint64_t)buff_id);
     if (ret != 0)
     {
-        EBA_ERR("eba_utils_file_to_buf failed (ret=%d)\n", ret);
+        EBA_ERR("%s: file_to_buf() failed: %d\n", __func__, ret);
         eba_internals_free(buff_id);
         return 1;
     }
@@ -179,11 +181,11 @@ int test_eba_utils_file_to_buf(void)
     memset(tmpbuf, 0, sizeof(tmpbuf));
     if (eba_internals_read(tmpbuf, (uint64_t)buff_id, 0, sizeof(tmpbuf) - 1) == 0)
     {
-        EBA_INFO("First 63 bytes from EBA buffer: \"%s\"\n", tmpbuf);
+        EBA_INFO("%s: first 63 bytes: \"%s\"\n", __func__, tmpbuf);
     }
     else
     {
-        EBA_ERR("Failed to read back from EBA buffer\n");
+        EBA_ERR("%s: read_back failed\n", __func__);
     }
 
     /* 4. Free the EBA buffer */
@@ -199,13 +201,13 @@ int test_eba_utils_buf_to_file(void)
     char pattern[512];
     int i, ret;
 
-    EBA_INFO("=== test_eba_utils_buf_to_file: START ===\n");
+    EBA_INFO("%s: START\n", __func__);
 
     /* 1. Allocate a 512-byte buffer */
     buff_id = eba_internals_malloc(512, 0);
     if (!buff_id)
     {
-        EBA_ERR("Failed to allocate EBA buffer in test_eba_utils_buf_to_file\n");
+        EBA_ERR("%s: malloc(512) failed\n", __func__);
         return 1;
     }
 
@@ -219,7 +221,7 @@ int test_eba_utils_buf_to_file(void)
     ret = eba_internals_write(pattern, (uint64_t)buff_id, 0, sizeof(pattern));
     if (ret < 0)
     {
-        EBA_ERR("Failed to write pattern to EBA buffer\n");
+        EBA_ERR("%s: write pattern failed: %d\n", __func__, ret);
         eba_internals_free(buff_id);
         return 1;
     }
@@ -228,17 +230,17 @@ int test_eba_utils_buf_to_file(void)
     ret = eba_utils_buf_to_file((uint64_t)buff_id, sizeof(pattern), "/tmp/test_output");
     if (ret < 0)
     {
-        EBA_ERR("eba_utils_buf_to_file failed, ret=%d\n", ret);
+        EBA_ERR("%s: buf_to_file failed: %d\n", __func__, ret);
         eba_internals_free(buff_id);
         return 1;
     }
 
-    EBA_INFO("Check /tmp/test_output to see if the 512-byte pattern is there.\n");
+    EBA_INFO("%s: check /tmp/test_output for pattern\n", __func__);
 
     /* 5. Free the buffer */
     eba_internals_free(buff_id);
 
-    EBA_INFO("=== test_eba_utils_buf_to_file: END ===\n");
+    EBA_INFO("%s: END\n", __func__);
     return 0; /* success */
 }
 
@@ -249,7 +251,7 @@ int test_eba_export_node_specs(void)
     char test_data[] = "Hello from node_0_specs!\n";
     int ret;
 
-    EBA_INFO("=== test_eba_export_node_specs: START ===\n");
+    EBA_INFO("%s: START\n", __func__);
 
     /* 1. Mark node_infos[node_index] as valid */
     node_infos[node_index].id = node_index;
@@ -258,7 +260,7 @@ int test_eba_export_node_specs(void)
     buff_id = eba_internals_malloc(1024, 100); /* 1KB for demonstration */
     if (!buff_id)
     {
-        EBA_ERR("Failed to allocate node_specs buffer for node %d\n", node_index);
+        EBA_ERR("%s: malloc(1K) failed\n", __func__);
         return 1;
     }
 
@@ -266,7 +268,7 @@ int test_eba_export_node_specs(void)
     ret = eba_internals_write(test_data, (uint64_t)buff_id, 0, strlen(test_data));
     if (ret < 0)
     {
-        EBA_ERR("Failed to write test data into node_specs buffer\n");
+        EBA_ERR("%s: write test data failed: %d\n", __func__, ret);
         eba_internals_free(buff_id);
         return 1;
     }
@@ -281,11 +283,10 @@ int test_eba_export_node_specs(void)
     ret = eba_export_node_specs();
     if (ret != 0)
     {
-        EBA_ERR("eba_export_node_specs returned error %d\n", ret);
+        EBA_ERR("%s: export_node_specs failed: %d\n", __func__, ret);
         return 1;
     }
-
     EBA_INFO("Check /var/lib/eba/node_0_specs to see if it contains: \"%s\"\n", test_data);
-    EBA_INFO("=== test_eba_export_node_specs: END ===\n");
+    EBA_INFO("%s: END\n", __func__);
     return 0; /* success */
 }

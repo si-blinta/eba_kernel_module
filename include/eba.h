@@ -93,14 +93,15 @@
 
 /* Logging Macros */
 
+#define EBA_PR(fmt, lvl, ...) printk(KERN_##lvl "EBA-" #lvl ": " fmt, ##__VA_ARGS__)
 /** Log an informational message for the EBA driver. */
-#define EBA_INFO(fmt, ...)  pr_info("EBA: " fmt, ##__VA_ARGS__)
+#define EBA_INFO(fmt, ...) EBA_PR(fmt, INFO,   ##__VA_ARGS__)
 /** Log an error message for the EBA driver. */
-#define EBA_ERR(fmt, ...)   pr_err("EBA: " fmt, ##__VA_ARGS__)
+#define EBA_ERR(fmt, ...)  EBA_PR(fmt, ERR,    ##__VA_ARGS__)
 /** Log a warning message for the EBA driver. */
-#define EBA_WARN(fmt, ...)  pr_warn("EBA: " fmt, ##__VA_ARGS__)
+#define EBA_WARN(fmt, ...) EBA_PR(fmt, WARNING,##__VA_ARGS__)
 /** Log a debug message for the EBA driver. */
-#define EBA_DBG(fmt, ...)   pr_debug("EBA: " fmt, ##__VA_ARGS__)
+#define EBA_DBG(fmt, ...)  EBA_PR(fmt, DEBUG,  ##__VA_ARGS__)
 
 /* Timer Settings */
 /** Timer period for the buffer clean-up callback in milliseconds (60000 ms = 1 minute). */

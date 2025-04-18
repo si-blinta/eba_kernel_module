@@ -17,6 +17,26 @@
  #include "ebp.h"           /* protocol */
  #include "eba_utils.h"     /* buff <-> file helpers */
  
+ /* Boolean to print DBG logs */
+ static bool eba_debug;
+ /* Register it as a module param */
+ module_param(eba_debug, bool, 0644);
+ /*
+     # read the current value
+     cat /sys/module/eba/parameters/eba_debug
+     # turn it on
+     echo 1 > /sys/module/eba/parameters/eba_debug
+     # turn it off
+     echo 0 > /sys/module/eba/parameters/eba_debug
+ */
+ /* Text description */
+ MODULE_PARM_DESC(eba_debug, "Enable EBA_DBG messages");
+ #undef  EBA_DBG
+ #define EBA_DBG(fmt, ...)                            \
+    do { if (eba_debug)                              \
+          EBA_PR(fmt, DEBUG,  ##__VA_ARGS__);       \
+    } while (0)
+
  /* Global variables for character device registration */
  static dev_t eba_devno;
  static struct cdev eba_cdev;
