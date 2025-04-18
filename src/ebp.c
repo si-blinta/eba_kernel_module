@@ -2,6 +2,7 @@
 #include "eba_internals.h"
 #include "eba_net.h"
 #include <linux/delay.h>
+#include <linux/workqueue.h>
 #include "eba.h"
 #include "eba_utils.h"
 
@@ -16,216 +17,75 @@ struct packet_type ebp_packet_type = {
     .func = ebp_handle_packets,   /* Packet receive callback function */
 };
 
-int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev,
-                       struct packet_type *pt, struct net_device *orig_dev)
-{
-    struct ebp_header *eba_hdr;
-    unsigned char *payload;
-    int payload_len;
-    struct ethhdr *eth;
+/*==================================================*/
+/*                  Workqueue                       */
+/*==================================================*/
 
-    if (!skb)
-    {
-        EBA_ERR("ebp_handle_packets: Packet is NULL\n");
+static struct workqueue_struct *ebp_wq;
+
+void ebp_work_handler(struct work_struct *work)
+{
+    struct ebp_work *wb = container_of(work, struct ebp_work, work);
+
+    EBA_INFO("ebp_work_handler: [workqueue] starting work for skb %p\n", wb->skb);
+
+    /* Call the full packet‐processing routine (frees wb->skb internally) */
+    ebp_process_skb(wb->skb, wb->dev);
+
+    EBA_INFO("ebp_work_handler: [workqueue] finished work for skb %p\n", wb->skb);
+
+    /* Free our work descriptor */
+    kfree(wb);
+}
+
+int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev)
+{
+    struct ebp_work *wb;
+    struct sk_buff  *cloned_skb;
+
+    if (!skb) {
+        EBA_ERR("ebp_handle_packets: skb is NULL\n");
         return NET_RX_DROP;
     }
 
-    /* Verify packet is long enough for an Ethernet header + EBA header */
-    if (skb->len < ETH_HLEN + sizeof(struct ebp_header))
-    {
-        EBA_ERR("ebp_handle_packets: Packet too short on device %s, length: %u\n", dev->name, skb->len);
+    /* Clone skb for deferred processing */
+    cloned_skb = skb_clone(skb, GFP_ATOMIC);
+    if (!cloned_skb) {
+        EBA_ERR("ebp_handle_packets: skb_clone() failed\n");
         kfree_skb(skb);
         return NET_RX_DROP;
     }
+    EBA_INFO("ebp_handle_packets: cloned skb %p -> %p\n", skb, cloned_skb);
 
-    /* Get the Ethernet header */
-    eth = eth_hdr(skb);
-    EBA_INFO("ebp_handle_packets: Source MAC address: %pM\n", eth->h_source);
-
-    /* EBA header */
-    payload = skb->data;
-    payload_len = skb->len;
-    eba_hdr = (struct ebp_header *)payload;
-
-    EBA_INFO("ebp_handle_packets: Received packet on %s, protocol: 0x%04x, length: %u, EBA msgType: 0x%02x\n",
-             dev->name, ntohs(skb->protocol), skb->len, eba_hdr->msgType);
-
-    switch (eba_hdr->msgType)
-    {
-    case EBP_MSG_DISCOVER:
-
-        /* --- Discover Request ---------------------------------- */
-        if (skb->len < ETH_HLEN + sizeof(struct ebp_discover_req))
-        {
-            EBA_ERR("ebp_handle_packets: Discover Request packet too short\n");
-            goto out_err;
-        }
-        else
-        {
-            struct ebp_discover_req *disc = (struct ebp_discover_req *)eba_hdr;
-            EBA_INFO("ebp_handle_packets: Discover Request: MTU = %u\n", ntohs(disc->mtu));
-
-            /* Allocate node specs buffer */
-            void *node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE, EBP_NODE_SPECS_MAX_LIFE_TIME);
-            if (!node_specs)
-            {
-                EBA_ERR("ebp_handle_packets: Failed to allocate node_specs buffer\n");
-                goto out_err;
-            }
-            /* Register the new node */
-            int ret = ebp_register_node(ntohs(disc->mtu), eth->h_source, (uint64_t)node_specs);
-            /* No space left error from ebp_register_node */
-            if (ret < 0)
-            {
-                EBA_ERR("ebp_handle_packets: register node failed with no space left error : %d\n", ret);
-                eba_internals_free(node_specs);
-                goto out_err;
-            }
-            /* Already registered */
-            else if (ret == -EEXIST)
-            {
-                /*
-                 * In this case, we do NOT want to keep the newly allocated buffer.
-                 * Instead, find the old node_specs from node_infos, and send the ACK with that pointer.
-                 */
-                eba_internals_free(node_specs);
-                /* Lookup existing node_specs for this MAC */
-                uint64_t existing_specs = ebp_get_specs_from_node_mac(eth->h_source);
-                if (!existing_specs)
-                {
-                    EBA_ERR("ebp_handle_packets: Node exists, but no specs found. MAC=%p\n", eth->h_source);
-                    goto out_err;
-                }
-                /* Send the Discover ACK using the previously stored node_specs */
-                ret = send_discover_ack_packet(existing_specs, eth->h_source, "enp0s8");
-                if (ret < 0)
-                {
-                    EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
-                    goto out_err;
-                }
-            }
-            else
-            {
-                /* New node successfully registered, so send an ACK using the newly allocated buffer */
-                ret = send_discover_ack_packet((uint64_t)node_specs, eth->h_source, "enp0s8");
-                if (ret < 0)
-                {
-                    EBA_ERR("ebp_handle_packets: send discover ack packet failed\n");
-                    eba_internals_free(node_specs);
-                    goto out_err;
-                }
-            }
-        }
-        break;
-    case EBP_MSG_DISCOVER_ACK:
-
-        /* --- Discover ACK -------------------------------------- */
-        if (skb->len < ETH_HLEN + sizeof(struct ebp_discover_ack))
-        {
-            EBA_ERR("ebp_handle_packets: Discover Ack packet too short\n");
-            goto out_err;
-        }
-        else
-        {
-            struct ebp_discover_ack *ack = (struct ebp_discover_ack *)eba_hdr;
-            uint64_t buff_id = be64_to_cpu(ack->buffer_id);
-
-            EBA_INFO("ebp_handle_packets: Discover Ack: buffer_id = %llu \n", buff_id);
-            int node_id = ebp_get_node_id_from_mac(eth->h_source);
-
-            /* Copy our local specs file into the local_specs buffer. */
-            int rc = eba_utils_file_to_buf("/var/lib/eba/node_local.eba", (uint64_t)local_specs);
-            if (rc < 0)
-            {
-                EBA_ERR("ebp_handle_packets: Failed to read node_local.eba, ret=%d\n", rc);
-                goto out_err;
-            }
-            EBA_INFO("ebp_handle_packets: Read %llu bytes from node_local.eba, sending to remote\n", (uint64_t)EBP_NODE_SPECS_MAX_SIZE); /* Debug */
-            if (node_id < 0)
-            {
-                /*
-                 * Node not registered => do NOT register. Instead, just send the data using the MINIMAL_MTU
-                 */
-                EBA_WARN("ebp_handle_packets: node not registered => sending data with forced MTU=%d\n", MINIMAL_MTU); /* Debug */
-                int rc = ebp_remote_write_fixed_mtu(eth->h_source, MINIMAL_MTU, buff_id, EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
-                if (rc < 0)
-                {
-                    EBA_ERR("ebp_handle_packets: ebp_remote_write_fixed_mtu() failed, ret=%d\n", rc);
-                    goto out_err;
-                }
-            }
-            else
-            {
-                /* Known node – send using "negotiated" MTU. */
-                rc = ebp_remote_write_mtu(node_id, buff_id, (uint64_t)EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
-                if (rc < 0)
-                {
-                    EBA_ERR("ebp_handle_packets: Failed to ebp_remote_write_mtu() node_local.eba content, ret=%d\n", rc);
-                    goto out_err;
-                }
-            }
-        }
-        break;
-
-    case EBP_MSG_INVOKE:
-
-        /* --- Invoke Request ------------------------------------- */
-        if (skb->len < ETH_HLEN + sizeof(struct ebp_invoke_req))
-        {
-            EBA_ERR("ebp_handle_packets: Invoke Request packet too short\n");
-        }
-        else
-        {
-            /* Cast the header into the invoke req */
-            struct ebp_invoke_req *inv = (struct ebp_invoke_req *)eba_hdr;
-            uint32_t iid = ntohl(inv->iid);
-            uint32_t opid = ntohl(inv->opid);
-            uint64_t args_len = be64_to_cpu(inv->args_len);
-
-            EBA_INFO("ebp_handle_packets: Invoke Request: IID = %u, OpID = %u, args_len = %llu\n", iid, opid, args_len); /* Debug */
-            /* Invoke the target operation */
-            int ret = ebp_invoke_op(opid, inv->args, args_len, eth->h_source);
-            if (ret < 0)
-            {
-                EBA_ERR("ebp_handle_packets: ebp_invoke_op(opid=%u) failed ret=%d\n", opid, ret);
-                goto out_err;
-                /* Possibly build & send an error ack or something... TODO */
-            }
-            else
-            {
-                /* Possibly build an ack for success... TODO */
-            }
-        }
-        break;
-    case EBP_MSG_INVOKE_ACK:
-
-        /* --- Invoke ACK (just log for now) ---------------------- */
-        if (skb->len < ETH_HLEN + sizeof(struct ebp_invoke_ack))
-        {
-            EBA_ERR("ebp_handle_packets: Invoke Ack packet too short\n");
-            goto out_err;
-        }
-        else
-        {
-            struct ebp_invoke_ack *inv_ack = (struct ebp_invoke_ack *)eba_hdr;
-            EBA_INFO("ebp_handle_packets: Invoke Ack: status = 0x%02x TODO \n ", inv_ack->status);
-        }
-        break;
-    default:
-        /* Unknown msgType – drop. */
-        EBA_ERR("ebp_handle_packets: Unknown EBA msgType: 0x%02x\n", eba_hdr->msgType);
-        goto out_err;
+    /* Allocate and initialize our work item */
+    wb = kmalloc(sizeof(*wb), GFP_ATOMIC);
+    if (!wb) {
+        EBA_ERR("ebp_handle_packets: kmalloc(ebp_work) failed\n");
+        kfree_skb(cloned_skb);
+        kfree_skb(skb);
+        return NET_RX_DROP;
     }
+    INIT_WORK(&wb->work, ebp_work_handler);
+    wb->skb      = cloned_skb;
+    wb->dev      = dev;
 
+    EBA_INFO("ebp_handle_packets: queueing work for skb %p on ebp_wq\n", cloned_skb);
+    queue_work(ebp_wq, &wb->work);
+
+    /* Free the original skb immediately; our clone lives on */
     kfree_skb(skb);
     return NET_RX_SUCCESS;
-out_err:
-    kfree_skb(skb);
-    return NET_RX_DROP;
 }
 
 void ebp_init(void)
 {
+    
+    /* Create our single‑threaded workqueue ( simpler for now )*/
+    ebp_wq = create_singlethread_workqueue("ebp_wq");
+    if (!ebp_wq) {
+        EBA_ERR("ebp_init: failed to create workqueue\n");
+    }
+    EBA_INFO("ebp_init: workqueue ebp_wq created\n");
     /* Register so that ebp_handle_packets() is invoked for every frame that matches our Ethertype. */
     dev_add_pack(&ebp_packet_type);
 
@@ -235,9 +95,11 @@ void ebp_init(void)
     op_entry_array_init();
     ebp_ops_init();
 
-    /* Pre‑allocate a buffer holding *our* node‑specs; lifetime 0 = infinite. */
+    /* Pre‑allocate and fill the buffer holding *our* node‑specs; lifetime 0 = infinite. */
     local_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE, 0);
-
+    if (eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs) < 0) {
+        EBA_ERR("ebp_init: read node_local failed\n");
+    }
     /* Debug */
     print_node_infos();
 }
@@ -245,6 +107,9 @@ void ebp_exit(void)
 {
     /* Unregister the packet handler */
     dev_remove_pack(&ebp_packet_type);
+    /* Drain & destroy workqueue */
+    destroy_workqueue(ebp_wq);
+    EBA_INFO("ebp_exit: workqueue ebp_wq destroyed\n");
 }
 
 /* Constants and global arrays for nodes, invokes, and ops */
@@ -728,4 +593,171 @@ int ebp_remote_write_fixed_mtu(const unsigned char *mac, uint16_t forced_mtu, ui
     }
 
     return 0;
+}
+
+int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev,
+                        struct ethhdr  *eth,struct ebp_header  *hdr)
+{
+    struct ebp_discover_req *disc;
+    void *node_specs;
+    int ret;
+
+    /* Sanity check packet length */
+    if (skb->len < ETH_HLEN + sizeof(*disc)) {
+        EBA_ERR("ebp_handle_discover: packet too short (len=%u)\n", skb->len);
+        ret = NET_RX_DROP;
+        goto out_free;
+    }
+
+    disc = (struct ebp_discover_req *)hdr;
+    EBA_INFO("ebp_handle_discover: MTU=%u\n", ntohs(disc->mtu));
+
+    /* Allocate specs buffer */
+    node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE, EBP_NODE_SPECS_MAX_LIFE_TIME);
+    if (!node_specs) {
+        EBA_ERR("ebp_handle_discover: malloc node_specs failed\n");
+        ret = NET_RX_DROP;
+        goto out_free;
+    }
+
+    /* Register node (or detect existing) */
+    ret = ebp_register_node(ntohs(disc->mtu),eth->h_source, (uint64_t)node_specs);
+    
+    if (ret < 0 && ret != -EEXIST) {
+        
+        EBA_ERR("ebp_handle_discover: ebp_register_node err=%d\n", ret);
+        eba_internals_free(node_specs);
+        ret = NET_RX_DROP;
+        goto out_free;
+    }
+
+    /* If already existed, free our new buffer and reuse old specs pointer */
+
+    if (ret == -EEXIST) {
+        eba_internals_free(node_specs);
+        node_specs = (void* )ebp_get_specs_from_node_mac(eth->h_source);
+    }
+
+    /* Send the ACK */
+    ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,dev->name);
+    
+    if (ret < 0) {
+        EBA_ERR("ebp_handle_discover: send_discover_ack err=%d\n", ret);
+        ret = NET_RX_DROP;
+        goto out_free;
+    }
+
+    ret = NET_RX_SUCCESS;
+
+out_free:
+    kfree_skb(skb);
+    return ret;
+}
+
+
+int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,
+                            struct ethhdr *eth,struct ebp_header  *hdr)
+{
+    struct ebp_discover_ack *ack = (struct ebp_discover_ack *)hdr;
+    uint64_t buff_id = be64_to_cpu(ack->buffer_id);
+    int node_id;
+    int rc;
+
+    EBA_INFO("ebp_handle_discover_ack: buffer_id=%llu\n", buff_id);
+
+    node_id = ebp_get_node_id_from_mac(eth->h_source);
+    if (node_id < 0) {
+
+        EBA_WARN("ebp_handle_discover_ack: unknown node, using MINIMAL_MTU\n");
+        rc = ebp_remote_write_fixed_mtu(eth->h_source,MINIMAL_MTU,buff_id,EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
+    } 
+    else {
+        
+        rc = ebp_remote_write_mtu(node_id,buff_id,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
+    }
+
+    if (rc < 0) {
+        EBA_ERR("ebp_handle_discover_ack: remote write failed, rc=%d\n", rc);
+        rc = NET_RX_DROP;
+    } else {
+        rc = NET_RX_SUCCESS;
+    }
+
+    kfree_skb(skb);
+    return rc;
+}
+
+
+int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
+                    struct ethhdr *eth,struct ebp_header *hdr)
+{
+    struct ebp_invoke_req *inv = (struct ebp_invoke_req *)hdr;
+    uint32_t iid = ntohl(inv->iid);
+    uint32_t opid = ntohl(inv->opid);
+    uint64_t args_len = be64_to_cpu(inv->args_len);
+    int rc;
+
+    EBA_INFO("ebp_handle_invoke: IID=%u OpID=%u args_len=%llu\n", iid, opid, args_len);
+
+    rc = ebp_invoke_op(opid, inv->args, args_len, eth->h_source);
+    if (rc < 0) {
+        EBA_ERR("ebp_handle_invoke: ebp_invoke_op failed, rc=%d\n", rc);
+        rc = NET_RX_DROP;
+    } else {
+        rc = NET_RX_SUCCESS;
+    }
+
+    kfree_skb(skb);
+    return rc;
+}
+
+
+int ebp_handle_invoke_ack(struct sk_buff *skb,struct net_device *dev,
+                                 struct ethhdr *eth,struct ebp_header *hdr)
+{
+    struct ebp_invoke_ack *ack = (struct ebp_invoke_ack *)hdr;
+
+    EBA_INFO("ebp_handle_invoke_ack TODO : status=0x%02x\n", ack->status);
+
+    kfree_skb(skb);
+    return NET_RX_SUCCESS;
+}
+
+int ebp_process_skb(struct sk_buff *skb,struct net_device *dev)
+{
+    struct ebp_header *hdr;
+    struct ethhdr *eth;
+
+    if (WARN_ON_ONCE(!skb))
+        return NET_RX_DROP;
+
+    if (skb->len < ETH_HLEN + sizeof(*hdr)) {
+        EBA_ERR("ebp_process_skb: packet too short on %s (len=%u)\n", dev->name, skb->len);
+        kfree_skb(skb);
+        return NET_RX_DROP;
+    }
+
+    eth = eth_hdr(skb);
+    hdr = (struct ebp_header *)skb->data;
+
+    EBA_INFO("ebp_process_skb: dispatching msgType=0x%02x from %pM on %s\n", hdr->msgType, eth->h_source, dev->name);
+
+    switch (hdr->msgType) {
+    case EBP_MSG_DISCOVER:
+        return ebp_handle_discover(skb, dev, eth, hdr);
+    
+    case EBP_MSG_DISCOVER_ACK:
+        return ebp_handle_discover_ack(skb, dev, eth, hdr);
+    
+    case EBP_MSG_INVOKE:
+        return ebp_handle_invoke(skb, dev, eth, hdr);
+    
+    case EBP_MSG_INVOKE_ACK:
+        return ebp_handle_invoke_ack(skb, dev, eth, hdr);
+    
+    default:
+        EBA_ERR("ebp_process_skb: unknown msgType=0x%02x\n", hdr->msgType);
+        kfree_skb(skb);
+        return NET_RX_DROP;
+    }
 }

@@ -292,21 +292,6 @@ struct ebp_invoke_ack {
 
 
 /**
- * ebp_handle_packets - Callback for processing received Ethernet frames.
- * @skb:      Pointer to the socket buffer containing the received packet.
- * @dev:      Network device that received the packet.
- * @pt:       Pointer to the packet_type structure associated with the packet.
- * @orig_dev: Original network device.
- *
- * This function is registered with the networking stack to handle Ethernet frames
- * with the EBP_ETHERTYPE protocol. It processes the received packet and returns an
- * appropriate status code.
- *
- * @return NET_RX_SUCCESS on successful processing, or an error code if processing fails.
- */
-int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
-
-/**
  * ebp_init - Register the EBA packet handler with the Linux networking stack and all other struct arrays related to ebp.
  * @return 0 on success, or a negative error code on failure.
  */
@@ -555,4 +540,130 @@ int ebp_discover(void);
  * Returns 0 on success, or a negative error code if any chunk fails.
  */
 int ebp_remote_write_fixed_mtu(const unsigned char *mac,uint16_t forced_mtu,uint64_t buff_id,uint64_t total_size,const char *payload);
+
+
+
+/*==================================================*/
+/*                  Workqueue                       */
+/*==================================================*/
+
+/**
+ * struct ebp_work - workqueue item for deferred packet processing
+ * @work:     kernel work_struct
+ * @skb:      cloned sk_buff to process
+ * @dev:      net_device on which skb was received
+ */
+struct ebp_work {
+    struct work_struct work;
+    struct sk_buff    *skb;
+    struct net_device *dev;
+};
+
+/**
+ * ebp_work_handler() - actual worker that runs in process context
+ * @work:   generic work_struct pointer, container_of() gives ebp_work
+ *
+ * Logs entry/exit, calls ebp_process_skb(), then frees the work item.
+ */
+void ebp_work_handler(struct work_struct *work);
+
+/**
+ * ebp_handle_packets() - packet_type callback invoked in softirq
+ * @skb:      incoming socket buffer
+ * @dev:      net_device that received it
+ * @pt:       packet_type descriptor
+ * @orig_dev: original device pointer
+ *
+ * Instead of doing all processing here (softirq), we clone the skb,
+ * queue it into our workqueue, free the original skb, and return.
+ */
+int ebp_handle_packets(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev);
+
+
+/**
+ * ebp_process_skb - entry point for deferred packet processing
+ * @skb: cloned socket buffer to process
+ * @dev: net_device on which it arrived
+ *
+ * Checks lengths, parses headers, and dispatches to the
+ * appropriate packet‑type handler above.
+ *
+ * Return: NET_RX_SUCCESS or NET_RX_DROP as returned by the handler.
+ */
+int ebp_process_skb(struct sk_buff *skb,struct net_device *dev);
+
+/**
+ * ebp_handle_invoke_ack - handle an incoming EBP_MSG_INVOKE_ACK
+ * @skb: the socket buffer containing the packet
+ * @dev: the net_device on which this packet arrived
+ * @eth: parsed Ethernet header from @skb
+ * @hdr: pointer to the start of the EBP header in @skb->data
+ *
+ * Logs the status field.  Always frees @skb before returning.
+ *
+ * Return: NET_RX_SUCCESS
+ */
+int ebp_handle_invoke_ack(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
+
+/**
+ * ebp_handle_invoke - handle an incoming EBP_MSG_INVOKE request
+ * @skb: the socket buffer containing the packet
+ * @dev: the net_device on which this packet arrived
+ * @eth: parsed Ethernet header from @skb
+ * @hdr: pointer to the start of the EBP header in @skb->data
+ *
+ * Extracts IID/OpID/args from the request and calls ebp_invoke_op().
+ * Always frees @skb before returning.
+ *
+ * Return: NET_RX_SUCCESS if the operation was queued/succeeded,
+ *         NET_RX_DROP on error.
+ */
+int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
+
+
+/**
+ * ebp_handle_discover_ack - handle an incoming EBP_MSG_DISCOVER_ACK
+ * @skb: the socket buffer containing the packet
+ * @dev: the net_device on which this packet arrived
+ * @eth: parsed Ethernet header from @skb
+ * @hdr: pointer to the start of the EBP header in @skb->data
+ *
+ * Reads remote buffer_id, picks MTU (either negotiated or MINIMAL),
+ * and writes our local_specs out.  Always frees @skb before returning.
+ *
+ * Return: NET_RX_SUCCESS on success, NET_RX_DROP on error.
+ */
+int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
+
+ /**
+  * ebp_handle_discover - handle an incoming EBP_MSG_DISCOVER request
+  * @skb: the socket buffer containing the packet (caller owns a clone)
+  * @dev: the net_device on which this packet arrived
+  * @eth: parsed Ethernet header from @skb
+  * @hdr: pointer to the start of the EBP header in @skb->data
+  *
+  * Allocates a node_specs buffer, registers (or re‑uses) the node,
+  * and sends back a Discover ACK.  Always frees @skb before returning.
+  *
+  * Return: NET_RX_SUCCESS if the ACK was sent successfully,
+  *         NET_RX_DROP on any error.
+  */
+ int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
+
+
+ /**
+  * ebp_handle_discover - handle an incoming EBP_MSG_DISCOVER request
+  * @skb: the socket buffer containing the packet (caller owns a clone)
+  * @dev: the net_device on which this packet arrived
+  * @eth: parsed Ethernet header from @skb
+  * @hdr: pointer to the start of the EBP header in @skb->data
+  *
+  * Allocates a node_specs buffer, registers (or re‑uses) the node,
+  * and sends back a Discover ACK.  Always frees @skb before returning.
+  *
+  * Return: NET_RX_SUCCESS if the ACK was sent successfully,
+  *         NET_RX_DROP on any error.
+  */
+int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev, struct ethhdr *eth,struct ebp_header *hdr);
+
 #endif
