@@ -41,6 +41,7 @@ struct eba_buffer {
   uint64_t size;             
   ktime_t expires;           
   struct list_head node;     
+  //Add permissions 
 };
 
 /**
