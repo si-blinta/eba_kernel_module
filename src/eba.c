@@ -312,17 +312,8 @@
  MODULE_DESCRIPTION("EBA Kernel Module with IOCTL Support");
  MODULE_VERSION("0.1");
 
- //  discover as an operation 
- //  add broadcast invoke
  //  variable : 128 bits
- //  ack operation
- //  TODO:
-
 //server - client 
 //recv char -> sends back 
-
-
-
 //then ; remote shell
 //add permissions
-//discover and ack are invocations now !

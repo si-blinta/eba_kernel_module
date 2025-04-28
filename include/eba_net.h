@@ -59,30 +59,6 @@ int eba_net_get_current_mtu(const char *ifname);
 int eba_net_set_mtu(const char *ifname, int new_mtu);
 
 /**
- * build_discover_req_packet - Build a Discover Request packet.
- * @mtu:     MTU value to embed in the discover request.
- * @out_len: Pointer to a variable that returns the total packet length.
- *
- * This function builds and returns a newly allocated Discover Request packet.
- * The caller is responsible for freeing the allocated packet.
- *
- * Return: Pointer to the packet on success, or NULL on failure.
- */
-char *build_discover_req_packet(uint16_t mtu, uint64_t *out_len);
-
-/**
- * build_discover_ack_packet - Build a Discover Acknowledgment packet.
- * @buffer_id: 64-bit identifier to embed in the ACK packet.
- * @out_len:   Pointer to a variable that returns the total packet length.
- *
- * This function builds and returns a newly allocated Discover-Ack packet.
- * The caller is responsible for freeing the packet.
- *
- * Return: Pointer to the allocated packet on success, or NULL on failure.
- */
-char *build_discover_ack_packet(uint64_t buffer_id, uint64_t *out_len);
-
-/**
  * build_invoke_req_packet - Build an Invoke Request packet.
  * @iid:         32-bit Invocation ID.
  * @opid:        32-bit Operation ID (e.g., EBP_OP_WRITE, EBP_OP_READ).
@@ -109,6 +85,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
 /**
  * build_invoke_ack_packet - Build an Invoke Acknowledgment packet.
  * @status:  8-bit status code (enum INVOKE_STATUS) to embed in the ACK.
+ * @data:    Operation specific data.
  * @out_len: Pointer to a variable that returns the total packet length.
  *
  * This function builds and returns a newly allocated Invoke-Ack packet. The
@@ -116,7 +93,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
  *
  * Return: Pointer to the allocated packet on success, or NULL on failure.
  */
-char *build_invoke_ack_packet(uint8_t status, uint64_t *out_len);
+char *build_invoke_ack_packet(uint8_t status, uint64_t data, uint64_t *out_len);
 
 /**
  * send_discover_req_packet - Build and send an EBP_MSG_DISCOVER packet.
@@ -165,14 +142,15 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
 
 /**
  * send_invoke_ack_packet - Build and send an EBP_MSG_INVOKE_ACK response packet.
+ * @data:     Operation specific data.
  * @status:   Status code to embed in the ACK.
  * @dest_mac: Destination node's MAC address.
  * @ifname:   Outgoing interface name.
  *
  * Return: 0 on success or a negative error code on failure.
  */
-int send_invoke_ack_packet(uint8_t status,
-                           const unsigned char dest_mac[6],
-                           const char *ifname);
+int send_invoke_ack_packet(uint8_t status, uint64_t data,
+    const unsigned char dest_mac[6],
+    const char *ifname);
 
 #endif

@@ -86,10 +86,11 @@ struct invoke_tracker {
  * @args    Pointer to the raw arguments buffer.
  * @arg_len Length of the arguments in bytes.
  * @node_id:    Target node id.
+ * @src_mac   MAC address of the packet sender.
  *
  * @Returns 0 on success, or a negative error code on failure.
  */
-typedef int (*ebp_op_t)(const void *args, uint64_t arg_len, uint16_t node_id);
+typedef int (*ebp_op_t)(const void *args,uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * struct op_entry - Represents an operation entry in the EBA protocol.
@@ -152,10 +153,8 @@ int op_entry_array_init(void);
  */
 enum EBP_MSG
 {
-    EBP_MSG_DISCOVER = 0x01,
-    EBP_MSG_INVOKE,
-    EBP_MSG_DISCOVER_ACK,
-    EBP_MSG_INVOKE_ACK
+    EBP_MSG_INVOKE = 0x01,
+    EBP_MSG_INVOKE_ACK = 0x02
 };
 
 /**
@@ -167,7 +166,8 @@ enum EBP_MSG
  * @EBP_OP_WRITE: Operation ID for writing to a buffer.
  */
 enum EBP_OP_IDS {
-    EBP_OP_ALLOC = 1,
+    EBP_OP_DISCOVER,
+    EBP_OP_ALLOC,
     EBP_OP_READ,
     EBP_OP_WRITE
 };
@@ -233,15 +233,9 @@ struct ebp_header {
 } __attribute__((packed));
 
 /**
- * struct ebp_discover_req - Structure for an EBA Discover Request message.
- * @header: Header containing the message type (should be set to EBP_MSG_DISCOVER).
  * @mtu:    Maximum Transmission Unit of the sender.
- *
- * This message is broadcast by a node during initialization to discover neighboring nodes.
- * It can be exposed as an API also.
  */
-struct ebp_discover_req {
-    struct ebp_header header;
+struct ebp_op_discover_args {
     uint16_t mtu;
 } __attribute__((packed));
 
@@ -281,12 +275,14 @@ struct ebp_invoke_req {
  * struct ebp_invoke_ack - Structure for an EBA Invoke Acknowledgment message.
  * @header: Header containing the message type (should be set to EBP_MSG_INVOKE_ACK).
  * @status: Status code indicating the result of the invocation.
+ * @data  : Operation-specific value.
  * This message is used to acknowledge that an Invoke Request has been processed,
  * reflecting whether the operation was queued, completed, or failed.
  */
 struct ebp_invoke_ack {
     struct ebp_header header;
     uint8_t status;
+    uint64_t data;
 } __attribute__((packed));
 
 
@@ -312,7 +308,7 @@ void ebp_exit(void);
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id);
+int ebp_op_alloc(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_op_write - Handle a remote write operation request.
@@ -324,8 +320,7 @@ int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id);
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id);
-
+int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 /**
  * ebp_op_read - Handle a remote read operation request.
  * @args:    Pointer to the argument blob from the invoke packet.
@@ -336,7 +331,7 @@ int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id);
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_read(const void *args, uint64_t arg_len,uint16_t node_id);
+int ebp_op_read(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_register_op - Register an EBA operation in the global op_entries array.
@@ -362,7 +357,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn);
  *
  * @return The return value of the invoked operation, or a negative error code if not found.
  */
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id);
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_ops_init - Initialize and register the default EBA operations.
@@ -380,6 +375,21 @@ int ebp_ops_init(void);
  * This utility function prints the registered operation entries for debugging and verification.
  */
 void print_op_entries(void);
+
+ /**
+ * ebp_op_discover() - new implementation of node discovery
+ * @args:     Pointer to ebp_op_discover_args (sender MTU in network order)
+ * @arg_len:  Length of @args
+ * @node_id:  Not used (node possibly unknown)
+ * @src_mac:  MAC address of the sender (needed for registration/ACK)
+ *
+ * Allocates or re-uses a node-specs buffer, registers the peer, then
+ * replies with an INVOKE_ACK whose 8-byte @data field carries the buffer-ID.
+ *
+ * Return: 0 on success or a negative errno.
+ */
+int ebp_op_discover(const void *args, uint64_t arg_len,
+    uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_remote_alloc - Request a buffer allocation from a remote node.
@@ -526,8 +536,8 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
 
 int ebp_discover(void);
 /**
- * ebp_remote_write_fixed_mtu() - Send data in chunks constrained by a given MTU.
- * @node_id:    The ID of the remote node.
+ * ebp_remote_write_fixed_mtu_mac() - Send data in MTU-bounded chunks using an explicit destination MAC.
+ * @dest_mac:    The mac of the remote node.
  * @forced_mtu:  The caller-specified MTU to use for chunking.
  * @buff_id:     The remote buffer identifier to write into.
  * @total_size:  The total number of bytes in @payload.
@@ -538,8 +548,8 @@ int ebp_discover(void);
  *
  * Returns 0 on success, or a negative error code if any chunk fails.
  */
-int ebp_remote_write_fixed_mtu(uint16_t node_id,uint16_t forced_mtu,uint64_t buff_id,uint64_t total_size,const char *payload);
-
+int ebp_remote_write_fixed_mtu_mac(const unsigned char dest_mac[6],uint16_t forced_mtu,
+                                    uint64_t buff_id,uint64_t total_size,const char *payload);
 
 
 /*==================================================*/
@@ -619,34 +629,5 @@ int ebp_handle_invoke_ack(struct sk_buff *skb,struct net_device *dev,struct ethh
  */
 int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
 
-
-/**
- * ebp_handle_discover_ack - handle an incoming EBP_MSG_DISCOVER_ACK
- * @skb: the socket buffer containing the packet
- * @dev: the net_device on which this packet arrived
- * @eth: parsed Ethernet header from @skb
- * @hdr: pointer to the start of the EBP header in @skb->data
- *
- * Reads remote buffer_id, picks MTU (either negotiated or MINIMAL),
- * and writes our local_specs out.  Always frees @skb before returning.
- *
- * Return: NET_RX_SUCCESS on success, NET_RX_DROP on error.
- */
-int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
-
- /**
-  * ebp_handle_discover - handle an incoming EBP_MSG_DISCOVER request
-  * @skb: the socket buffer containing the packet (caller owns a clone)
-  * @dev: the net_device on which this packet arrived
-  * @eth: parsed Ethernet header from @skb
-  * @hdr: pointer to the start of the EBP header in @skb->data
-  *
-  * Allocates a node_specs buffer, registers (or re‑uses) the node,
-  * and sends back a Discover ACK.  Always frees @skb before returning.
-  *
-  * Return: NET_RX_SUCCESS if the ACK was sent successfully,
-  *         NET_RX_DROP on any error.
-  */
- int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
 
 #endif

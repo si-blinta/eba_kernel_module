@@ -190,11 +190,10 @@ int invoke_tracker_array_init(void)
 
 int op_entry_array_init(void)
 {
-    EBA_DBG("%s\n", __func__);
     uint64_t i;
-    for (i = 0; i < MAX_OP_COUNT; i++)
-    {
-        op_entries[i].op_id = 0;
+
+    for (i = 0; i < MAX_OP_COUNT; ++i) {
+        op_entries[i].op_id  = UINT_MAX;
         op_entries[i].op_ptr = NULL;
     }
     return 0;
@@ -223,7 +222,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn)
     /* Find a free entry */
     for (i = 0; i < MAX_OP_COUNT; i++)
     {
-        if (op_entries[i].op_ptr == NULL && op_entries[i].op_id == 0)
+        if (op_entries[i].op_ptr == NULL && op_entries[i].op_id == UINT_MAX)
         {
             op_entries[i].op_id = op_id;
             op_entries[i].op_ptr = fn;
@@ -235,7 +234,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn)
     return -ENOSPC;
 }
 
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len,uint16_t node_id)
+int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: op_id=%u arg_len=%llu node_id=%u\n",__func__, op_id, arg_len, node_id);
     int i;
@@ -244,7 +243,7 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len,uint16_t no
         if (op_entries[i].op_id == op_id)
         {
             EBA_INFO("%s: calling handler slot %d\n",__func__, i);
-            return op_entries[i].op_ptr(args, arg_len, node_id);
+            return op_entries[i].op_ptr(args, arg_len, node_id,src_mac);
         }
     }
     EBA_ERR("%s: op_id %u not found\n", __func__, op_id);
@@ -255,6 +254,8 @@ int ebp_ops_init(void)
 {
     EBA_DBG("%s\n", __func__);
     int ret = 0;
+    if (ebp_register_op(EBP_OP_DISCOVER, ebp_op_discover)< 0)
+        ret = -1;
     if (ebp_register_op(EBP_OP_ALLOC, ebp_op_alloc) < 0)
         ret = -1;
     if (ebp_register_op(EBP_OP_WRITE, ebp_op_write) < 0)
@@ -264,7 +265,7 @@ int ebp_ops_init(void)
     return ret;
 }
 
-int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id)
+int ebp_op_write(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     /* Check that args is not NULL and that its is large enough for our fixed-size header */
@@ -291,11 +292,11 @@ int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id)
     const uint8_t *payload = (const uint8_t *)args + header_size;
 
     EBA_DBG("%s: buff_id=%llx offset=%llu size=%llu\n",__func__, wr->buff_id, wr->offset, wr->size);
-    send_invoke_ack_packet(INVOKE_QUEUED,dest_mac, "enp0s8");
+    send_invoke_ack_packet(INVOKE_QUEUED,0,dest_mac, "enp0s8");
     return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
 }
 
-int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id)
+int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     if (!args || arg_len < sizeof(struct ebp_op_alloc_args))
@@ -318,7 +319,7 @@ int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id)
     return 0;
 }
 
-int ebp_op_read(const void *args, uint64_t arg_len, uint16_t node_id)
+int ebp_op_read(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     /* Verify that a valid argument is provided and that it's at least as large as our header. */
@@ -625,29 +626,29 @@ int ebp_discover(void)
 {
     EBA_DBG("%s:\n", __func__);
     int ret;
-    char mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    int mtu = eba_net_get_current_mtu("enp0s8");
-    if (mtu < 0)
+    struct ebp_op_discover_args dc = {
+        .mtu = htons(eba_net_get_current_mtu("enp0s8"))
+    };
+    if (dc.mtu < 0)
     {
-        EBA_ERR("%s: get_current_mtu failed rc=%d\n",__func__, mtu);
+        EBA_ERR("%s: get_current_mtu failed rc=%d\n",__func__, dc.mtu);
         return -1;
     }
-    ret = send_discover_req_packet((uint16_t)mtu, mac, "enp0s8");
+    ret =  send_invoke_req_packet(0, EBP_OP_DISCOVER,(char *)&dc, sizeof(dc),NULL, 0,broadcast_mac, "enp0s8");
     if(ret < 0 )
     {
         EBA_ERR("%s: send_discover_req_packet failed rc=%d\n",__func__, ret);
     }
     else
     {
-        EBA_DBG("%s: broadcasted discover (mtu=%d)\n",__func__, mtu);
+        EBA_DBG("%s: broadcasted discover (mtu=%d)\n",__func__, dc.mtu);
     }
     return ret ;
 }
-
-int ebp_remote_write_fixed_mtu(uint16_t node_id, uint16_t forced_mtu, uint64_t buff_id,
-                               uint64_t total_size, const char *payload)
+int ebp_remote_write_fixed_mtu_mac(const unsigned char dest_mac[6],uint16_t  forced_mtu,uint64_t  buff_id,
+                                   uint64_t  total_size,const char *payload)
 {
-    EBA_DBG("%s: node_id=%u forced_mtu=%u buff=%llu total=%llu\n",__func__, node_id, forced_mtu, buff_id, total_size);
+    EBA_DBG("%s: mac=%pM forced_mtu=%u buff=%llu total=%llu\n",__func__, dest_mac, forced_mtu, buff_id, total_size);
     const uint16_t overhead = sizeof(struct ebp_invoke_req) + MTU_OVERHEAD;
 
     if (!payload)
@@ -661,136 +662,31 @@ int ebp_remote_write_fixed_mtu(uint16_t node_id, uint16_t forced_mtu, uint64_t b
         return -EINVAL;
     }
 
-    uint16_t chunk_size = forced_mtu - overhead;
-    uint64_t offset = 0;
+    uint16_t chunk = forced_mtu - overhead;
+    uint64_t off   = 0;
 
-    /* Break the data into chunks of 'chunk_size' and send each one. */
-    while (offset < total_size)
-    {
-        uint64_t remaining = total_size - offset;
-        uint64_t segment_size = (remaining < chunk_size) ? remaining : chunk_size;
+    while (off < total_size) {
+        uint64_t seg = min((uint64_t)chunk, total_size - off);
 
-        int ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, node_id);
-        if (ret < 0)
+        struct ebp_op_write_args wr = {
+            .buff_id = buff_id,
+            .offset  = off,
+            .size    = seg
+        };
+
+        int rc = send_invoke_req_packet(0x1234, EBP_OP_WRITE,(char *)&wr, sizeof(wr),
+                                        payload + off, seg,dest_mac, "enp0s8");
+        if (rc < 0)
         {
-            EBA_ERR("%s: write_fixed at off=%llu rc=%d\n",__func__, offset, ret);
-            return ret;
+            EBA_ERR("%s: write_fixed at off=%llu rc=%d\n",__func__, off, rc);
+            return rc;
         }
 
-        offset += segment_size;
+        off += seg;
     }
-
     EBA_DBG("%s: finished remote_write_fixed total=%llu\n",__func__, total_size);
     return 0;
 }
-
-int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev,
-                        struct ethhdr  *eth,struct ebp_header  *hdr)
-{
-    EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
-    struct ebp_discover_req *disc;
-    void *node_specs;
-    int ret;
-
-    /* Sanity check packet length */
-    if (skb->len < ETH_HLEN + sizeof(*disc)) {
-        EBA_ERR("%s: pkt too short len=%u\n",__func__, skb->len);
-        ret = NET_RX_DROP;
-        goto out_free;
-    }
-
-    disc = (struct ebp_discover_req *)hdr;
-    EBA_DBG("%s: received DISCOVER mtu=%u from %pM\n",__func__, ntohs(disc->mtu), eth->h_source);
-
-
-    /* Allocate specs buffer */
-    node_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE, EBP_NODE_SPECS_MAX_LIFE_TIME);
-    if (!node_specs) {
-        EBA_ERR("%s: alloc specs failed\n", __func__);
-        ret = NET_RX_DROP;
-        goto out_free;
-    }
-
-    /* Register node (or detect existing) */
-    ret = ebp_register_node(ntohs(disc->mtu),eth->h_source, (uint64_t)node_specs);
-    
-    if (ret < 0 && ret != -EEXIST) {
-        
-        EBA_ERR("%s: register_node rc=%d\n",__func__, ret);
-        eba_internals_free(node_specs);
-        ret = NET_RX_DROP;
-        goto out_free;
-    }
-
-    /* If already existed, free our new buffer and reuse old specs pointer */
-
-    if (ret == -EEXIST) {
-        eba_internals_free(node_specs);
-        node_specs = (void* )ebp_get_specs_from_node_mac(eth->h_source);
-    }
-
-    /* Send the ACK */
-    ret = send_discover_ack_packet((uint64_t)node_specs,eth->h_source,dev->name);
-    
-    if (ret < 0) {
-        EBA_ERR("%s: send_ack rc=%d\n", __func__, ret);
-        ret = NET_RX_DROP;
-        goto out_free;
-    }
-
-    ret = NET_RX_SUCCESS;
-
-out_free:
-    kfree_skb(skb);
-    return ret;
-}
-
-
-int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,
-                            struct ethhdr *eth,struct ebp_header  *hdr)
-{
-    
-    EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
-    
-    struct ebp_discover_ack *ack = (struct ebp_discover_ack *)hdr;
-    uint64_t buff_id = be64_to_cpu(ack->buffer_id);
-    int node_id;
-    int rc;
-
-    /* Sanity check packet length */
-    if (skb->len < ETH_HLEN + sizeof(*ack)) {
-        EBA_ERR("%s: pkt too short len=%u\n",__func__, skb->len);
-        rc = NET_RX_DROP;
-        goto out_free;
-    }
-
-    EBA_DBG("%s: buffer_id=%llu from %pM\n",__func__, buff_id, eth->h_source);
-
-    node_id = ebp_get_node_id_from_mac(eth->h_source);
-    if (node_id < 0) {
-
-        EBA_WARN("%s: unknown node, using minimal mtu\n", __func__);
-        rc = ebp_remote_write_fixed_mtu(node_id,MINIMAL_MTU,buff_id,EBP_NODE_SPECS_MAX_SIZE, (char *)local_specs);
-    } 
-    else {
-        
-        rc = ebp_remote_write_mtu(node_id,buff_id,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
-    }
-
-    if (rc < 0) {
-        EBA_ERR("%s: write specs rc=%d\n", __func__, rc);
-        rc = NET_RX_DROP;
-        goto out_free;
-    } 
-
-    rc = NET_RX_SUCCESS;
-    EBA_DBG("%s: discover_ack handled\n", __func__);
-
-out_free:
-    kfree_skb(skb);
-    return rc;
-}
-
 
 int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
                     struct ethhdr *eth,struct ebp_header *hdr)
@@ -801,6 +697,7 @@ int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
     uint32_t iid = ntohl(inv->iid);
     uint32_t opid = ntohl(inv->opid);
     uint64_t args_len = be64_to_cpu(inv->args_len);
+    int node_id    = ebp_get_node_id_from_mac(eth->h_source);
     int rc;
 
       /* Sanity check packet length */
@@ -812,7 +709,7 @@ int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
 
     EBA_DBG("%s: IID=%u OPID=%u args_len=%llu from %pM\n",__func__, iid, opid, args_len, eth->h_source);
 
-    rc = ebp_invoke_op(opid, inv->args, args_len, ebp_get_node_id_from_mac(eth->h_source));
+    rc = ebp_invoke_op(opid, inv->args, args_len, node_id,eth->h_source);
     if (rc < 0) {
         EBA_ERR("%s: invoke_op rc=%d\n", __func__, rc);
         rc = NET_RX_DROP;
@@ -826,14 +723,24 @@ out_free:
     return rc;
 }
 
-
-int ebp_handle_invoke_ack(struct sk_buff *skb,struct net_device *dev,
-                                 struct ethhdr *eth,struct ebp_header *hdr)
+int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
+                          struct ethhdr *eth, struct ebp_header *hdr)
 {
     EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
     struct ebp_invoke_ack *ack = (struct ebp_invoke_ack *)hdr;
+    uint64_t data = be64_to_cpu(ack->data);
 
     EBA_DBG("%s: received ACK status=0x%02x from %pM\n",__func__, ack->status, eth->h_source);
+
+    /* DISCOVER completed → ship our specs buffer to the peer          */
+    if (ack->status == INVOKE_COMPLETED && data) {
+        int node_id = ebp_get_node_id_from_mac(eth->h_source);
+
+        if (node_id < 0)   /* peer still unknown ⇒ use direct-MAC path */
+            ebp_remote_write_fixed_mtu_mac(eth->h_source, MINIMAL_MTU,data,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
+        else               /* peer already registered                  */
+            ebp_remote_write_mtu(node_id, data,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
+    }
 
     kfree_skb(skb);
     return NET_RX_SUCCESS;
@@ -862,13 +769,7 @@ int ebp_process_skb(struct sk_buff *skb,struct net_device *dev)
 
     EBA_DBG("%s: dispatch msgType=0x%02x from %pM\n",__func__, hdr->msgType, eth->h_source);
 
-    switch (hdr->msgType) {
-    case EBP_MSG_DISCOVER:
-        return ebp_handle_discover(skb, dev, eth, hdr);
-    
-    case EBP_MSG_DISCOVER_ACK:
-        return ebp_handle_discover_ack(skb, dev, eth, hdr);
-    
+    switch (hdr->msgType) {    
     case EBP_MSG_INVOKE:
         return ebp_handle_invoke(skb, dev, eth, hdr);
     
@@ -890,4 +791,39 @@ static const unsigned char *node_id_to_mac(uint16_t node_id)
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
     }
     return mac;
+}
+
+int ebp_op_discover(const void *args, uint64_t arg_len,
+                    uint16_t node_id, const unsigned char src_mac[6])
+{
+    const struct ebp_op_discover_args *dc;
+    void  *specs_buf;
+    int    rc;
+
+    if (!args || arg_len < sizeof(*dc))
+        return -EINVAL;
+
+    dc = args;
+
+    /* Allocate a specs buffer (infinite lifetime)     */
+    specs_buf = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE,
+                                     EBP_NODE_SPECS_MAX_LIFE_TIME);
+    if (!specs_buf)
+        return -ENOMEM;
+
+    /* Register or look-up node                        */
+    rc = ebp_register_node(ntohs(dc->mtu), src_mac, (uint64_t)specs_buf);
+    if (rc == -EEXIST) {                 /* already present → reuse buffer  */
+        eba_internals_free(specs_buf);
+        specs_buf = (void *)ebp_get_specs_from_node_mac(src_mac);
+    } else if (rc < 0) {                 /* fatal error                     */
+        eba_internals_free(specs_buf);
+        return rc;
+    }
+
+    /* ACK with buffer-ID in the new “data” field      */
+    return send_invoke_ack_packet(INVOKE_COMPLETED,
+                                  (uint64_t)specs_buf,
+                                  src_mac,
+                                  "enp0s8");
 }
