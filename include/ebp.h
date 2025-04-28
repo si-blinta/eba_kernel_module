@@ -281,7 +281,6 @@ struct ebp_invoke_req {
  * struct ebp_invoke_ack - Structure for an EBA Invoke Acknowledgment message.
  * @header: Header containing the message type (should be set to EBP_MSG_INVOKE_ACK).
  * @status: Status code indicating the result of the invocation.
- *
  * This message is used to acknowledge that an Invoke Request has been processed,
  * reflecting whether the operation was queued, completed, or failed.
  */
@@ -387,7 +386,7 @@ void print_op_entries(void);
  * @size:          Size of the buffer to allocate.
  * @life_time:     Lifetime of the buffer allocation.
  * @local_buff_id: Local buffer identifier where the allocated buffer's ID will be stored.
- * @node_id:    Target node id.
+ * @node_id:       Target node id, 0 for broadcast.
  *
  * This function sends a remote allocation request to a distant node.
  *
@@ -401,7 +400,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,u
  * @offset:  Byte offset in the remote buffer where writing should begin.
  * @size:    Size of the data payload to write.
  * @payload: Pointer to the data payload.
- * @node_id:    Target node id.
+ * @node_id:    Target node id, 0 for broadcast.
  *
  * This function sends a request to write data to a remote node's buffer.
  *
@@ -416,7 +415,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @dst_offset:    Byte offset within the local buffer.
  * @src_offset:    Byte offset within the remote buffer where reading should start.
  * @size:          Number of bytes to read.
- * @node_id:    Target node id.
+ * @node_id:       Target node id, 0 for broadcast.
  *
  * This function sends a request to read data from a remote node's buffer into a local buffer.
  *
@@ -649,21 +648,5 @@ int ebp_handle_discover_ack(struct sk_buff *skb,struct net_device *dev,struct et
   *         NET_RX_DROP on any error.
   */
  int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
-
-
- /**
-  * ebp_handle_discover - handle an incoming EBP_MSG_DISCOVER request
-  * @skb: the socket buffer containing the packet (caller owns a clone)
-  * @dev: the net_device on which this packet arrived
-  * @eth: parsed Ethernet header from @skb
-  * @hdr: pointer to the start of the EBP header in @skb->data
-  *
-  * Allocates a node_specs buffer, registers (or re‑uses) the node,
-  * and sends back a Discover ACK.  Always frees @skb before returning.
-  *
-  * Return: NET_RX_SUCCESS if the ACK was sent successfully,
-  *         NET_RX_DROP on any error.
-  */
-int ebp_handle_discover(struct sk_buff *skb,struct net_device *dev, struct ethhdr *eth,struct ebp_header *hdr);
 
 #endif

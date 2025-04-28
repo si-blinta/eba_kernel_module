@@ -352,6 +352,8 @@ int ebp_op_read(const void *args, uint64_t arg_len, uint16_t node_id)
 
     return 0;
 }
+
+static const unsigned char broadcast_mac[6]={0xff,0xff,0xff,0xff,0xff,0xff};
 int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id)
 {
     EBA_DBG("%s: size=%llu life_time=%llu local_id=%llu node_id=%u\n",__func__, 
@@ -361,7 +363,16 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
         .life_time = life_time,
         .buffer_id = local_buff_id};
 
-    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
     if(!dest_mac)
     {
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
@@ -387,7 +398,15 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
         .offset = offset,
         .size = size};
     
-    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
     if(!dest_mac)
     {
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
@@ -414,7 +433,15 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
         .src_offset = src_offset,
         .size = size};
     
-    const unsigned char* dest_mac = node_id_to_mac(node_id);
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
     if(!dest_mac)
     {
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
