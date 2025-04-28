@@ -220,7 +220,7 @@ int eba_export_node_specs(void)
     return ret;
 }
 
-int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count)
+int eba_get_node_infos(struct eba_node_info *out)
 {
     int fd, ret;
     fd = open_eba_device();
@@ -235,14 +235,6 @@ int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count)
         return -1;
     }
     close(fd);
-
-    /* Count how many valid entries we got (stop at id == 0) */
-    uint64_t cnt;
-    for ( cnt = 0; cnt < MAX_NODE_COUNT; cnt++) {
-        if (out[cnt].id == 0) 
-            break;
-    }
-    *out_count = cnt;
     return 0;
 }
 

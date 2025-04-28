@@ -149,7 +149,7 @@ void print_node_infos(void)
     EBA_DBG("%s: dumping node_infos (count=%d)\n", __func__, nodes_count);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        if (node_infos[i].id != INVALID_NODE_ID)
+        if (node_infos[i].id != UNUSED_NODE_ID)
         {
             EBA_DBG("%s: slot=%d id=%d MTU=%u MAC=%pM specs=%llu\n",
                 __func__,
@@ -177,14 +177,12 @@ void print_op_entries(void)
 
 int node_info_array_init(void)
 {
-    EBA_DBG("%s\n", __func__);
-    uint64_t i;
-    memset(node_infos, 0, sizeof(node_infos));
-    for (i = 0; i < MAX_NODE_COUNT; i++)
-    {
-        node_infos[i].id = INVALID_NODE_ID;
-    }
-    return 0;
+        EBA_DBG("%s\n", __func__);
+        spin_lock(&node_info_lock);
+        memset(node_infos, 0, sizeof(node_infos));   
+        nodes_count = 1;                            
+        spin_unlock(&node_info_lock);
+        return 0;
 }
 
 int invoke_tracker_array_init(void)
@@ -508,7 +506,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     /* First, check if a node with this MAC already exists. */
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        if (node_infos[i].id != INVALID_NODE_ID && memcmp(node_infos[i].mac, mac, 6) == 0)
+        if (node_infos[i].id != UNUSED_NODE_ID && memcmp(node_infos[i].mac, mac, 6) == 0)
         {
             /* Node already registered, return success (no error). */
             EBA_WARN("%s: node already exists slot=%d id=%d\n",__func__, i, node_infos[i].id);
@@ -520,7 +518,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     /* If no existing node found, find the first free slot. */
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        if (node_infos[i].id == INVALID_NODE_ID)
+        if (node_infos[i].id == UNUSED_NODE_ID)
         {
             free_slot = i;
             break;
@@ -554,7 +552,7 @@ int ebp_get_node_id_from_mac(const char mac[6])
     spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
-        if (node_infos[i].id != INVALID_NODE_ID &&
+        if (node_infos[i].id != UNUSED_NODE_ID &&
             memcmp(node_infos[i].mac, mac, ETH_ALEN) == 0)
         {
             EBA_DBG("%s: found node_id=%u at slot=%d\n",__func__, node_infos[i].id, i);

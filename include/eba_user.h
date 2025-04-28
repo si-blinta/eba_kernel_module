@@ -129,11 +129,10 @@ int eba_export_node_specs(void);
 /**
  * eba_get_node_infos() - fetch the list of registered nodes from kernel
  * @out:       pre‐allocated array of struct eba_node_info (size = max)
- * @out_count: actual number of entries returned
  *
  * Returns 1 if it timed out , 0 on success and ‑1 on error.
  */
-int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count);
+int eba_get_node_infos(struct eba_node_info *out);
 
 int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms);
 #endif

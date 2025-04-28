@@ -169,13 +169,11 @@ int main(void) {
         }
         else if (strcmp(tok[0], "get_node_infos")==0) {
             struct eba_node_info infos[MAX_NODE_COUNT];
-            uint64_t count = 0;
-            if (eba_get_node_infos(infos, &count) < 0) {
+            if (eba_get_node_infos(infos) < 0) {
                 fprintf(stderr,"Failed to get node infos\n");
                 continue;
             }
-            printf("Known %llu node(s):\n", (unsigned long long)count);
-            for (uint64_t i=0;i<count;i++) {
+            for (uint64_t i=0;i<MAX_NODE_COUNT;i++) {
                 unsigned char *m = infos[i].mac;
                 printf("  NodeID=%u MTU=%u MAC=%02x:%02x:%02x:%02x:%02x:%02x specs=%llu\n",
                        infos[i].id, infos[i].mtu,
