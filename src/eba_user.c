@@ -1,5 +1,5 @@
 #include "eba_user.h"
-
+#include <errno.h>
 
 /*
  * open_eba_device() — open /dev/eba and return fd
@@ -113,16 +113,16 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time,
 
     fd = open_eba_device();
     if (fd < 0)
-        return -1;
+        return 0;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_ALLOC, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_ALLOC)");
-        return 1;
+        return 0;
     }
-    return 0;
+    return remote.iid;
 }
 
 int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
@@ -143,17 +143,16 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
 
     fd = open_eba_device();
     if (fd < 0)
-        return -1;
+        return 0;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_WRITE, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_WRITE)");
-        return 1;
+        return 0;
     }
-
-    return 0;
+    return remote.iid;
 }
 
 int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size,uint16_t node_id )
@@ -172,16 +171,16 @@ int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
 
     fd = open_eba_device(); 
     if (fd < 0)
-        return -1;
+        return 0;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_READ, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_READ)");
-        return 1;
+        return 0;
     }
-    return 0;
+    return remote.iid;
 }
 
 int eba_discover(void)
@@ -245,4 +244,29 @@ int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count)
     }
     *out_count = cnt;
     return 0;
+}
+
+int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms)
+{
+        struct eba_wait_iid wi = {
+                .iid           = iid,
+                .wanted_status = status,
+                .timeout_ms    = timeout_ms,
+                .rc            = -EINTR,
+                .timed_out     = 0
+        };
+        int fd = open_eba_device();
+        if (fd < 0)
+                return -1;
+
+        if (ioctl(fd, EBA_IOCTL_WAIT_IID, &wi) < 0) {
+                perror("ioctl(EBA_IOCTL_WAIT_IID)");
+                close(fd);
+                return -1;
+        }
+        close(fd);
+
+        if (wi.timed_out)      
+            return 1;               /* timed out */
+        return wi.rc;          /* 0 on success, negative on error     */
 }

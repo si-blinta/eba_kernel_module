@@ -41,7 +41,9 @@
  static dev_t eba_devno;
  static struct cdev eba_cdev;
  static struct class *eba_class = NULL;
- 
+ extern spinlock_t waiter_lock;
+ extern spinlock_t node_info_lock;
+
  extern struct node_info node_infos[MAX_NODE_COUNT];
  
  /*
@@ -128,7 +130,9 @@
            /* Copy the remote alloc parameters from user space */
            if (copy_from_user(&ra, (void __user *)arg, sizeof(ra)))
                 return -EFAULT;
-           ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id);
+           ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id, &ra.iid);
+           if (copy_to_user((void __user *)arg, &ra, sizeof(ra)))
+               ret = -EFAULT;
            break;
  
       case EBA_IOCTL_REMOTE_WRITE:
@@ -137,7 +141,10 @@
            /* Copy the remote write parameters from user space */
            if (copy_from_user(&rwr, (void __user *)arg, sizeof(rwr)))
                 return -EFAULT;
-           ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id);
+           ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id,&rwr.iid);
+           /* propagate IID back */
+          if (copy_to_user((void __user *)arg, &rwr, sizeof(rwr)))
+               ret = -EFAULT;
            break;
  
       case EBA_IOCTL_REMOTE_READ:
@@ -146,7 +153,9 @@
            /* Copy the remote read parameters from user space */
            if (copy_from_user(&rr, (void __user *)arg, sizeof(rr)))
                 return -EFAULT;
-           ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id);
+           ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id,&rr.iid);
+          if (copy_to_user((void __user *)arg, &rr, sizeof(rr)))
+               ret = -EFAULT;
            break;
  
       case EBA_IOCTL_DISCOVER:
@@ -162,9 +171,10 @@
       case EBA_IOCTL_GET_NODE_INFOS: 
            
            struct eba_node_info infos[MAX_NODE_COUNT];
+           memset(infos,0,sizeof(infos));
            uint64_t i, cnt = 0;
-           print_node_infos();
            /* Copy out only the valid slots */
+           spin_lock(&node_info_lock);
            for (i = 0; i < MAX_NODE_COUNT; i++) {
                 if (node_infos[i].id != INVALID_NODE_ID) {
                     infos[cnt].id         = node_infos[i].id;
@@ -174,13 +184,52 @@
                     cnt++;
                 }
            }
- 
+           spin_unlock(&node_info_lock);
            /* Copy the compacted array back to user; user must allocate space for MAX_NODE_COUNT entries */
            if (copy_to_user((void __user *)arg, infos, cnt * sizeof(struct eba_node_info)))
                ret = -EFAULT;
            break;
       
- 
+          case EBA_IOCTL_WAIT_IID: 
+
+               struct eba_wait_iid wi;
+          
+               if (copy_from_user(&wi, (void __user *)arg, sizeof(wi)))
+                         return -EFAULT;
+          
+               /* ---------- register the waiter ------------------------------ */
+               struct iid_waiter *w;
+               spin_lock(&waiter_lock);
+          
+               w = waiter_alloc(wi.iid, wi.wanted_status, current);
+               if (!w) {
+                         spin_unlock(&waiter_lock);
+                         wi.rc = -ENOSPC;
+                         goto copy_to_usr;
+               }
+          
+               spin_unlock(&waiter_lock);
+          
+               /* ---------- sleep ------------------------------------------- */
+               set_current_state(TASK_INTERRUPTIBLE);
+          
+               if (wi.timeout_ms)
+                         schedule_timeout(msecs_to_jiffies(wi.timeout_ms));
+               else
+                         schedule();             /* unlimited                    */
+          
+               /* ---------- running again ----------------------------------- */
+               wi.rc = w->rc;
+               wi.timed_out = (w->done == 0);               /* timed out = 1 if we never saw the ACK */
+               /* free the slot                                                */
+               spin_lock(&waiter_lock);
+               w->iid = 0;
+               spin_unlock(&waiter_lock);
+     
+     copy_to_usr:
+          if (copy_to_user((void __user *)arg, &wi, sizeof(wi)))
+                    return -EFAULT;
+          break;   
       default:
  
            ret = -ENOTTY;

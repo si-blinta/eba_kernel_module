@@ -88,8 +88,10 @@
 #define EBA_IOCTL_GET_NODE_INFOS _IOWR(EBA_IOC_MAGIC, 9, struct eba_node_info)
 
 
+#define EBA_IOCTL_WAIT_IID  _IOWR(EBA_IOC_MAGIC, 10, struct eba_wait_iid)
+
 /** Maximum number of EBA IOCTL commands supported. */
-#define EBA_IOC_MAXNR 9
+#define EBA_IOC_MAXNR 10
 
 /* Logging Macros */
 
@@ -157,7 +159,7 @@ struct eba_write {
  * @life_time:  Lifetime for the remote buffer allocation in seconds.
  * @buffer_id:  Buffer id that will store the remotely allocated buffer.
  * @node_id:    Target node id .
- *
+ * @iid:        The invocation id that will be returned.
  * This structure is used to request a buffer allocation on a remote node.
  */
 struct eba_remote_alloc{
@@ -165,6 +167,7 @@ struct eba_remote_alloc{
     __u64 life_time; 
     __u64 buffer_id;
     __u16 node_id;
+    __u32 iid;
 };
 
 /**
@@ -173,8 +176,8 @@ struct eba_remote_alloc{
  * @offset:   Offset within the remote buffer where the write operation should begin.
  * @size:     Number of bytes to write.
  * @payload:  Pointer to the data payload to be written.
- * @node_id:    Target node id .
- *
+ * @node_id:  Target node id .
+ * @iid:      The invocation id that will be returned.
  * This structure is used to send a write request to a remote node by specifying the target
  * buffer, the offset within that buffer, and the data to be written.
  */
@@ -184,6 +187,7 @@ struct eba_remote_write{
     __u64 size;
     char* payload;
     __u16 node_id;
+    __u32 iid;
     
 };
 
@@ -194,8 +198,8 @@ struct eba_remote_write{
  * @dst_offset:    Offset within the destination buffer where the data should be written.
  * @src_offset:    Offset within the source buffer where the reading should begin.
  * @size:          Number of bytes to read.
- * @node_id:    Target node id .
- *
+ * @node_id:       Target node id .
+ * @iid:           The invocation id that will be returned.
  * This structure is used to request a read operation from a remote node. It specifies
  * both the source (remote) buffer and the destination (local) buffer along with the respective
  * offsets and the size of data to be transferred.
@@ -207,6 +211,7 @@ struct eba_remote_read {
     __u64 src_offset;
     __u64 size;
     __u16 node_id;
+    __u32 iid;
     
 };
 
@@ -223,4 +228,21 @@ struct eba_node_info {
     unsigned char mac[6];
     __u64        node_specs;
 };
+
+/**
+ * struct eba_wait_iid - userspace argument for EBA_IOCTL_WAIT_IID
+ * @iid:           Invocation-ID to wait for
+ * @wanted_status: value of ebp_invoke_ack::status that shall wake us
+ * @timeout_ms:    maximum time to sleep (0 == infinite)
+ * @rc:            filled by the driver (0, -ETIMEDOUT, -ENOSPC, …)
+ * @timed_out      0 = woke-up because of ACK, 1 = woke-up because of timeout
+ */
+struct eba_wait_iid {
+    __u32  iid;
+    __u8   wanted_status;
+    __u32  timeout_ms;
+    __s32  rc;
+    __u8   timed_out;
+};
+
 #endif /* _EBA_H */

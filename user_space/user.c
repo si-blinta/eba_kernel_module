@@ -4,8 +4,15 @@
 #include <stdint.h>
 #include "eba_user.h"
 
-#define MAX_LINE 512
+#define MAX_LINE 2048
 #define MAX_TOKENS 16
+
+enum INVOKE_STATUS {
+    INVOKE_QUEUED = 0,    
+    INVOKE_COMPLETED,      
+    INVOKE_FAILED,
+    INVOKE_DEFAULT     
+};
 
 /* Reads a line from stdin, returns NULL on EOF */
 static char *read_line(char *buf, size_t sz) {
@@ -110,7 +117,8 @@ int main(void) {
                    (unsigned long long)local_id,
                    (unsigned long long)size,
                    (unsigned long long)lifetime);
-            eba_remote_alloc(size,lifetime,local_id,node_id);
+            int iid = eba_remote_alloc(size,lifetime,local_id,node_id);
+            printf("IID = %d\n",iid);
         }
         else if (strcmp(tok[0], "remote_write")==0 && ntoks>=5) {
             uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
@@ -127,7 +135,12 @@ int main(void) {
                    (unsigned long long)buf_id,
                    (unsigned long long)offset,
                    str, len);
-            eba_remote_write(buf_id,offset,len,str,node_id);
+            int iid = eba_remote_write(buf_id,offset,len,str,node_id);
+            printf("waiting for complete\n");
+            int timeout = eba_wait_iid(iid,INVOKE_COMPLETED,10000);
+            if(timeout == 1)
+                printf("timed out  \n");
+            printf("IID = %d\n",iid);
         }
         else if (strcmp(tok[0], "remote_read")==0 && ntoks==7) {
             uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
@@ -143,7 +156,8 @@ int main(void) {
                    (unsigned long long)dst_id,
                    (unsigned long long)dst_off,
                    (unsigned long long)size);
-            eba_remote_read(dst_id,src_id,dst_off,src_off,size,node_id);
+            int iid = eba_remote_read(dst_id,src_id,dst_off,src_off,size,node_id);
+            printf("IID = %d\n",iid);
         }
         else if (strcmp(tok[0], "discover")==0) {
             eba_discover();

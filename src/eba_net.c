@@ -200,7 +200,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
     return buf;
 }
 
-char *build_invoke_ack_packet(uint8_t status, uint64_t data,
+char *build_invoke_ack_packet(uint32_t iid,uint8_t status, uint64_t data,
                               uint64_t *out_len)
 {
     uint64_t len = sizeof(struct ebp_invoke_ack);
@@ -214,7 +214,7 @@ char *build_invoke_ack_packet(uint8_t status, uint64_t data,
     ack->header.msgType = EBP_MSG_INVOKE_ACK;
     ack->status         = status;
     ack->data           = cpu_to_be64(data);
-
+    ack->iid            = htonl(iid);
     *out_len = len;
     EBA_DBG("%s: built invoke_ack len=%llu status=0x%02x data=%llu\n",
             __func__, len, status, data);
@@ -259,12 +259,12 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
     return 0;
 }
 
-int send_invoke_ack_packet(uint8_t status, uint64_t data,
+int send_invoke_ack_packet(uint32_t iid,uint8_t status, uint64_t data,
                            const unsigned char dest_mac[6],
                            const char *ifname)
 {
     uint64_t pkt_len = 0;
-    char *packet = build_invoke_ack_packet(status, data, &pkt_len);
+    char *packet = build_invoke_ack_packet(iid,status, data, &pkt_len);
     int ret;
 
     if (!packet)

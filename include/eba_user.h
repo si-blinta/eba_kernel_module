@@ -66,7 +66,7 @@ int eba_read(void* data_out, uint64_t buff_id, uint64_t off, uint64_t size);
  * @local_buff_id: The local buffer identifier where the remote buffer ID will be stored.
  * @node_id:    Target node id .
  *
- * Return: 0 on success, or a negative error code on failure.
+ * Return: IID on success, or 0 on failure.
  */
 int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id);
 
@@ -78,7 +78,7 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,u
  * @payload: Pointer to the data payload.
  * @node_id:    Target node id.
  *
- * Return: 0 on success, or a negative error code on failure.
+* Return: IID on success, or 0 on failure.
  */
 int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id);
 
@@ -91,7 +91,7 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @size:          The number of bytes to read.
  * @node_id:    Target node id.
  *
- * Return: 0 on success, or a negative error code on failure.
+* Return: IID on success, or 0 on failure.
  */
 int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id);
 
@@ -131,8 +131,9 @@ int eba_export_node_specs(void);
  * @out:       pre‐allocated array of struct eba_node_info (size = max)
  * @out_count: actual number of entries returned
  *
- * Returns 0 on success, ‑1 on error.
+ * Returns 1 if it timed out , 0 on success and ‑1 on error.
  */
 int eba_get_node_infos(struct eba_node_info *out,uint64_t *out_count);
 
+int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms);
 #endif

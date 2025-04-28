@@ -6,6 +6,18 @@
 #include "eba.h"
 #include "eba_utils.h"
 
+struct iid_waiter iid_waiters[MAX_WAITERS];
+spinlock_t waiter_lock;        /* initialised in ebp_init() */
+spinlock_t node_info_lock;          /* initialised in ebp_init() */
+
+atomic_t ebp_iid_ctr = ATOMIC_INIT(1);
+
+/* Return the next unique 32-bit Invocation-ID */
+static inline uint32_t ebp_next_iid(void)
+{
+        return (uint32_t)atomic_inc_return_relaxed(&ebp_iid_ctr);
+}
+
 void *local_specs = NULL; /* local node‑specs buffer, allocated in ebp_init() */
 
 /*
@@ -96,7 +108,8 @@ void ebp_init(void)
     EBA_INFO("%s: workqueue ebp_wq created\n", __func__);
     /* Register so that ebp_handle_packets() is invoked for every frame that matches our Ethertype. */
     dev_add_pack(&ebp_packet_type);
-
+    spin_lock_init(&waiter_lock);
+    spin_lock_init(&node_info_lock);
     /* One‑time init of global tables (node list, op registry…). */
     node_info_array_init();
     invoke_tracker_array_init();
@@ -109,7 +122,10 @@ void ebp_init(void)
         EBA_ERR("%s: reading node_local.eba failed\n", __func__);
     }
     /* Debug */
-    print_node_infos();
+
+    for (int i = 0; i < MAX_WAITERS; i++)
+        iid_waiters[i].iid = 0;      /* mark slot free                  */
+
 }
 void ebp_exit(void)
 {
@@ -163,13 +179,10 @@ int node_info_array_init(void)
 {
     EBA_DBG("%s\n", __func__);
     uint64_t i;
+    memset(node_infos, 0, sizeof(node_infos));
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         node_infos[i].id = INVALID_NODE_ID;
-        node_infos[i].mtu = 0;
-        /* Zero out the 6-byte MAC address */
-        memset(node_infos[i].mac, 0, sizeof(node_infos[i].mac));
-        node_infos[i].node_specs = 0;
     }
     return 0;
 }
@@ -234,7 +247,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn)
     return -ENOSPC;
 }
 
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
+int ebp_invoke_op(uint32_t iid, uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: op_id=%u arg_len=%llu node_id=%u\n",__func__, op_id, arg_len, node_id);
     int i;
@@ -243,7 +256,7 @@ int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t n
         if (op_entries[i].op_id == op_id)
         {
             EBA_INFO("%s: calling handler slot %d\n",__func__, i);
-            return op_entries[i].op_ptr(args, arg_len, node_id,src_mac);
+            return op_entries[i].op_ptr(iid,args, arg_len, node_id,src_mac);
         }
     }
     EBA_ERR("%s: op_id %u not found\n", __func__, op_id);
@@ -265,19 +278,13 @@ int ebp_ops_init(void)
     return ret;
 }
 
-int ebp_op_write(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
+int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     /* Check that args is not NULL and that its is large enough for our fixed-size header */
     if (!args || arg_len < sizeof(struct ebp_op_write_args))
     {
         EBA_ERR("%s: invalid arg_len=%llu (must be ≥%zu) or NULL args=%p\n",__func__, arg_len, sizeof(struct ebp_op_write_args), args);
-        return -EINVAL;
-    }
-    const unsigned char* dest_mac = node_id_to_mac(node_id);
-    if(!dest_mac)
-    {
-        EBA_ERR("%s: node_id_to_mac failed for node_id=%u\n",__func__, node_id);
         return -EINVAL;
     }
     const struct ebp_op_write_args *wr = args;
@@ -292,11 +299,18 @@ int ebp_op_write(const void *args, uint64_t arg_len,uint16_t node_id, const unsi
     const uint8_t *payload = (const uint8_t *)args + header_size;
 
     EBA_DBG("%s: buff_id=%llx offset=%llu size=%llu\n",__func__, wr->buff_id, wr->offset, wr->size);
-    send_invoke_ack_packet(INVOKE_QUEUED,0,dest_mac, "enp0s8");
-    return eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
+    int ret = eba_internals_write(payload, wr->buff_id, wr->offset, wr->size);
+    if (ret < 0 )
+    {
+        EBA_ERR("%s: eba_internals_write failed\n",__func__);
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        return ret;
+        
+    }
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
 }
 
-int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
+int ebp_op_alloc(uint32_t iid, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     if (!args || arg_len < sizeof(struct ebp_op_alloc_args))
@@ -312,14 +326,15 @@ int ebp_op_alloc(const void *args, uint64_t arg_len, uint16_t node_id, const uns
     if (!new_buf)
     {
         EBA_ERR("%s: eba_internals_malloc failed for size=%llu\n",__func__, alloc_args->size);
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
         return -ENOMEM;
     }
     uint64_t buf_id = (uint64_t)new_buf;
-    ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, node_id);
-    return 0;
+    ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, node_id,NULL); 
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
 }
 
-int ebp_op_read(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
+int ebp_op_read(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
 {
     EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
     /* Verify that a valid argument is provided and that it's at least as large as our header. */
@@ -338,24 +353,26 @@ int ebp_op_read(const void *args, uint64_t arg_len,uint16_t node_id, const unsig
     if (ret < 0)
     {
         EBA_ERR("%s: eba_internals_read failed rc=%d\n",__func__, ret);;
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
         kfree(read_data);
         return ret;
     }
-    ret = ebp_remote_write(rd_args->dst_buffer_id, rd_args->dst_offset, rd_args->size, (const char *)read_data, node_id);
+    ret = ebp_remote_write(rd_args->dst_buffer_id, rd_args->dst_offset, rd_args->size, (const char *)read_data, node_id,NULL);
     if (ret < 0)
     {
         EBA_ERR("%s: ebp_remote_write failed rc=%d\n",__func__, ret);
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
         kfree(read_data);
         return ret;
     }
 
     EBA_DBG("%s: read+forward %llu bytes\n", __func__, rd_args->size);
-
-    return 0;
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
 }
 
 static const unsigned char broadcast_mac[6]={0xff,0xff,0xff,0xff,0xff,0xff};
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id)
+
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id,uint32_t *iid_out)
 {
     EBA_DBG("%s: size=%llu life_time=%llu local_id=%llu node_id=%u\n",__func__, 
             size, life_time, local_buff_id, node_id);
@@ -379,7 +396,16 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
         return -EINVAL;
     }
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, "enp0s8");
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, "enp0s8");
+    
+    unsigned long flags;
+    spin_lock_irqsave(&waiter_lock, flags);
+    waiter_alloc(iid, 0 /* placeholder */, NULL);
+    spin_unlock_irqrestore(&waiter_lock, flags);
+    
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
@@ -390,7 +416,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
     return 0;
 }
 
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, uint16_t node_id)
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out)
 {
     EBA_DBG("%s: buff_id=%llu off=%llu size=%llu node_id=%u\n",__func__, 
             buff_id, offset, size, node_id);
@@ -413,7 +439,15 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
         return -EINVAL;
     }
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , "enp0s8");
+    
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , "enp0s8");
+    unsigned long flags;
+    spin_lock_irqsave(&waiter_lock, flags);
+    waiter_alloc(iid, 0 /* placeholder */, NULL);
+    spin_unlock_irqrestore(&waiter_lock, flags);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
@@ -423,7 +457,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
     return 0;
 }
 
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id)
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out)
 {
     EBA_DBG("%s: dst_buffer_id=%llu src_buffer_id=%llu dst_offset=%llu src_offset=%llu size=%llu node_id=%u\n",__func__, 
         dst_buffer_id, src_buffer_id, dst_offset, src_offset, size, node_id);
@@ -448,7 +482,15 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
         return -EINVAL;
     }
-    int ret = send_invoke_req_packet(0x1234, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, "enp0s8");
+    
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, "enp0s8");
+    unsigned long flags;
+    spin_lock_irqsave(&waiter_lock, flags);
+    waiter_alloc(iid, 0 /* placeholder */, NULL);
+    spin_unlock_irqrestore(&waiter_lock, flags);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
@@ -462,7 +504,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     EBA_DBG("%s: mtu=%u mac=%p node_specs=%llu\n",__func__, mtu, mac, node_specs);
     int free_slot = -1;
     int i;
-
+    spin_lock(&node_info_lock);
     /* First, check if a node with this MAC already exists. */
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
@@ -470,6 +512,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
         {
             /* Node already registered, return success (no error). */
             EBA_WARN("%s: node already exists slot=%d id=%d\n",__func__, i, node_infos[i].id);
+            spin_unlock(&node_info_lock);
             return -EEXIST;
         }
     }
@@ -487,6 +530,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     if (free_slot == -1)
     {
         EBA_ERR("%s: no space for new node\n", __func__);
+        spin_unlock(&node_info_lock);
         return -ENOSPC;
     }
 
@@ -499,7 +543,7 @@ int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
     EBA_INFO("%s: registered node slot=%d id=%d MTU=%u\n",__func__, free_slot, nodes_count, mtu);
 
     nodes_count++;
-    print_node_infos();
+    spin_unlock(&node_info_lock);
     return 0;
 }
 
@@ -507,16 +551,19 @@ int ebp_get_node_id_from_mac(const char mac[6])
 {
     EBA_DBG("%s: mac=%pM\n", __func__, mac);
     int i;
+    spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         if (node_infos[i].id != INVALID_NODE_ID &&
             memcmp(node_infos[i].mac, mac, ETH_ALEN) == 0)
         {
             EBA_DBG("%s: found node_id=%u at slot=%d\n",__func__, node_infos[i].id, i);
+            spin_unlock(&node_info_lock);
             return node_infos[i].id;
         }
     }
     EBA_ERR("%s: mac %pM not found\n", __func__, mac);
+    spin_unlock(&node_info_lock);
     return -1; /* Not found */
 }
 
@@ -524,15 +571,18 @@ const unsigned char *ebp_get_mac_from_node_id(uint16_t node_id)
 {
     EBA_DBG("%s: node_id=%u\n", __func__, node_id);
     int i;
+    spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         if (node_infos[i].id == node_id)
         {
             EBA_DBG("%s: slot %d -> mac %pM\n",__func__, i, node_infos[i].mac);
+            spin_unlock(&node_info_lock);
             return node_infos[i].mac;
         }
     }
     EBA_ERR("%s: node_id=%u not registered\n", __func__, node_id);
+    spin_unlock(&node_info_lock);
     return NULL; /* Not found */
 }
 
@@ -540,15 +590,18 @@ uint16_t ebp_get_mtu_from_node_id(int node_id)
 {
     EBA_DBG("%s: node_id=%d\n", __func__, node_id);
     int i;
+    spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         if (node_infos[i].id == node_id)
         {
             EBA_DBG("%s: node_id=%d mtu=%u\n",__func__, node_id, node_infos[i].mtu);
+            spin_unlock(&node_info_lock);
             return node_infos[i].mtu;
         }
     }
     EBA_ERR("%s: node_id=%d not found, returning 0\n",__func__, node_id);
+    spin_unlock(&node_info_lock);
     return 0; /* Not found */
 }
 
@@ -556,15 +609,18 @@ uint64_t ebp_get_specs_from_node_id(int node_id)
 {
     EBA_DBG("%s: node_id=%d\n", __func__, node_id);
     int i;
+    spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         if (node_infos[i].id == node_id)
         {
             EBA_DBG("%s: node_id=%d specs=%llu\n",__func__, node_id, node_infos[i].node_specs);
+            spin_unlock(&node_info_lock);
             return node_infos[i].node_specs;
         }
     }
     EBA_ERR("%s: node_id=%d not found, returning 0\n",__func__, node_id);
+    spin_unlock(&node_info_lock);
     return 0; /* Not found */
 }
 
@@ -572,14 +628,17 @@ uint64_t ebp_get_specs_from_node_mac(const char *mac_address)
 {
     EBA_DBG("%s: mac=%pM\n", __func__, mac_address);
     int i;
+    spin_lock(&node_info_lock);
     for (i = 0; i < MAX_NODE_COUNT; i++)
     {
         if (memcmp(node_infos[i].mac, mac_address, 6) == 0)
         {
             EBA_DBG("%s: slot %d specs=%llu\n",__func__, i, node_infos[i].node_specs);
+            spin_unlock(&node_info_lock);
             return node_infos[i].node_specs;
         }
     }
+    spin_unlock(&node_info_lock);
     return 0; /* Not found */
 }
 
@@ -609,7 +668,8 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
         if (segment_size > mtu)
             segment_size = mtu;
 
-        ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, node_id);
+        ret = ebp_remote_write(buff_id, offset, segment_size, payload + offset, node_id,NULL);
+        
         if (ret < 0)
         {
             EBA_ERR("%s: write at offset %llu failed rc=%d\n",__func__, offset, ret);
@@ -674,7 +734,7 @@ int ebp_remote_write_fixed_mtu_mac(const unsigned char dest_mac[6],uint16_t  for
             .size    = seg
         };
 
-        int rc = send_invoke_req_packet(0x1234, EBP_OP_WRITE,(char *)&wr, sizeof(wr),
+        int rc = send_invoke_req_packet(ebp_next_iid(), EBP_OP_WRITE,(char *)&wr, sizeof(wr),
                                         payload + off, seg,dest_mac, "enp0s8");
         if (rc < 0)
         {
@@ -709,7 +769,7 @@ int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,
 
     EBA_DBG("%s: IID=%u OPID=%u args_len=%llu from %pM\n",__func__, iid, opid, args_len, eth->h_source);
 
-    rc = ebp_invoke_op(opid, inv->args, args_len, node_id,eth->h_source);
+    rc = ebp_invoke_op(iid,opid, inv->args, args_len, node_id,eth->h_source);
     if (rc < 0) {
         EBA_ERR("%s: invoke_op rc=%d\n", __func__, rc);
         rc = NET_RX_DROP;
@@ -729,8 +789,25 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
     EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
     struct ebp_invoke_ack *ack = (struct ebp_invoke_ack *)hdr;
     uint64_t data = be64_to_cpu(ack->data);
-
     EBA_DBG("%s: received ACK status=0x%02x from %pM\n",__func__, ack->status, eth->h_source);
+    
+    unsigned long flags;
+    spin_lock_irqsave(&waiter_lock, flags);
+    for (int i = 0; i < MAX_WAITERS; i++) {
+            struct iid_waiter *w = &iid_waiters[i];
+
+            if (w->iid &&
+                w->iid == ntohl(ack->iid) &&
+                w->wanted_status == ack->status) {
+
+                    w->done = 1;
+                    w->rc   = 0;          /* success                 */
+
+                    if (w->task)
+                            wake_up_process(w->task);
+            }
+    }
+    spin_unlock_irqrestore(&waiter_lock, flags);
 
     /* DISCOVER completed → ship our specs buffer to the peer          */
     if (ack->status == INVOKE_COMPLETED && data) {
@@ -744,8 +821,8 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
 
     kfree_skb(skb);
     return NET_RX_SUCCESS;
-}
 
+}
 int ebp_process_skb(struct sk_buff *skb,struct net_device *dev)
 {
     EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
@@ -793,7 +870,7 @@ static const unsigned char *node_id_to_mac(uint16_t node_id)
     return mac;
 }
 
-int ebp_op_discover(const void *args, uint64_t arg_len,
+int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
                     uint16_t node_id, const unsigned char src_mac[6])
 {
     const struct ebp_op_discover_args *dc;
@@ -822,8 +899,32 @@ int ebp_op_discover(const void *args, uint64_t arg_len,
     }
 
     /* ACK with buffer-ID in the new “data” field      */
-    return send_invoke_ack_packet(INVOKE_COMPLETED,
-                                  (uint64_t)specs_buf,
-                                  src_mac,
-                                  "enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,(uint64_t)specs_buf,src_mac,"enp0s8");
+}
+
+/**
+ * waiter_alloc() - reserve a slot in iid_waiters[]
+ *
+ * @iid:           Invocation-ID that the future waiter will watch
+ * @wanted_stat:   status byte that will wake it
+ * @tsk:           sleeping task_struct (may be NULL for pre-registration)
+ *
+ * Return: pointer to the freshly initialised slot, or NULL if the table is
+ *         full.  Caller must hold waiter_lock.
+ */
+struct iid_waiter * waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk)
+{
+        int i;
+
+        for (i = 0; i < MAX_WAITERS; i++) {
+                if (iid_waiters[i].iid == 0) {      /* free            */
+                        iid_waiters[i].iid           = iid;
+                        iid_waiters[i].wanted_status = wanted_stat;
+                        iid_waiters[i].task          = tsk;
+                        iid_waiters[i].done          = 0;
+                        iid_waiters[i].rc            = -ETIMEDOUT;
+                        return &iid_waiters[i];
+                }
+        }
+        return NULL;                                /* table full      */
 }

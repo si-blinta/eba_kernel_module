@@ -15,6 +15,8 @@
 #include <linux/if_ether.h>
 #include <linux/errno.h>
 #include <linux/types.h> 
+#include <linux/atomic.h>
+
 /* EBA Protocol Constants */
 
 /** EBA EtherType used to identify EBA frames in Ethernet communication. */
@@ -41,8 +43,7 @@
  * @INVOKE_DEFAULT:     Default state for an uninitialized invocation.
  */
 enum INVOKE_STATUS {
-    INVOKE_QUEUED = 0,   
-    INVOKE_IN_PROGRESS,    
+    INVOKE_QUEUED = 0,    
     INVOKE_COMPLETED,      
     INVOKE_FAILED,
     INVOKE_DEFAULT     
@@ -68,12 +69,13 @@ struct node_info {
  * @pid:    Process identifier associated with the invocation.
  * @done:   Boolean flag indicating whether the invocation is complete.
  * @status: Current status of the invocation (see INVOKE_STATUS).
+ * @wq    : Wait queue
  */
 struct invoke_tracker {
-    uint32_t iid;
-    pid_t pid;
-    bool done;
-    enum INVOKE_STATUS status;
+    uint32_t iid;                
+    pid_t    pid;                
+    bool     done;               
+    enum INVOKE_STATUS status;   
 };
 
 /**
@@ -82,7 +84,7 @@ struct invoke_tracker {
  * This function pointer is used by each op_entry to reference an operation
  * function. Every EBA operation function must accept a pointer to a raw
  * arguments buffer, the length of the arguments, and the destination MAC address.
- *
+ * @iid:         32-bit Invocation ID.
  * @args    Pointer to the raw arguments buffer.
  * @arg_len Length of the arguments in bytes.
  * @node_id:    Target node id.
@@ -90,7 +92,7 @@ struct invoke_tracker {
  *
  * @Returns 0 on success, or a negative error code on failure.
  */
-typedef int (*ebp_op_t)(const void *args,uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
+typedef int (*ebp_op_t)(uint32_t iid, const void *args,uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * struct op_entry - Represents an operation entry in the EBA protocol.
@@ -274,6 +276,7 @@ struct ebp_invoke_req {
 /**
  * struct ebp_invoke_ack - Structure for an EBA Invoke Acknowledgment message.
  * @header: Header containing the message type (should be set to EBP_MSG_INVOKE_ACK).
+ * @iid:      32-bit Invocation ID.
  * @status: Status code indicating the result of the invocation.
  * @data  : Operation-specific value.
  * This message is used to acknowledge that an Invoke Request has been processed,
@@ -281,6 +284,7 @@ struct ebp_invoke_req {
  */
 struct ebp_invoke_ack {
     struct ebp_header header;
+    uint32_t iid;
     uint8_t status;
     uint64_t data;
 } __attribute__((packed));
@@ -299,6 +303,7 @@ void ebp_exit(void);
 
 /**
  * ebp_op_alloc - Handle a remote buffer allocation request.
+ * @iid:      32-bit Invocation ID.
  * @args:    Pointer to the argument provided in the invoke packet.
  * @arg_len: Length of the argument.
  * @node_id:    Target node id.
@@ -308,21 +313,23 @@ void ebp_exit(void);
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_alloc(const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
+int ebp_op_alloc(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_op_write - Handle a remote write operation request.
+ * @iid:     32-bit Invocation ID.
  * @args:    Pointer to the argument from the invoke packet.
  * @arg_len: Length of the argument data.
- * @node_id:    Target node id.
+ * @node_id: Target node id.
  *
  * This function processes a request to write data to a remote buffer.
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
+int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 /**
  * ebp_op_read - Handle a remote read operation request.
+ * @iid:      32-bit Invocation ID.
  * @args:    Pointer to the argument blob from the invoke packet.
  * @arg_len: Length of the argument data.
  * @node_id:    Target node id.
@@ -331,7 +338,7 @@ int ebp_op_write(const void *args, uint64_t arg_len, uint16_t node_id, const uns
  *
  * @return 0 on success, or 1 on failure.
  */
-int ebp_op_read(const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
+int ebp_op_read(uint32_t iid ,const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_register_op - Register an EBA operation in the global op_entries array.
@@ -347,6 +354,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn);
 
 /**
  * ebp_invoke_op - Invoke a registered EBA operation.
+ * @iid:      32-bit Invocation ID.
  * @op_id:   Operation identifier to look up.
  * @args:    Pointer to the raw argument data.
  * @arg_len: Length of the argument data in bytes.
@@ -357,7 +365,7 @@ int ebp_register_op(uint32_t op_id, ebp_op_t fn);
  *
  * @return The return value of the invoked operation, or a negative error code if not found.
  */
-int ebp_invoke_op(uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
+int ebp_invoke_op(uint32_t iid, uint32_t op_id, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
  * ebp_ops_init - Initialize and register the default EBA operations.
@@ -378,6 +386,7 @@ void print_op_entries(void);
 
  /**
  * ebp_op_discover() - new implementation of node discovery
+ * @iid:      32-bit Invocation ID
  * @args:     Pointer to ebp_op_discover_args (sender MTU in network order)
  * @arg_len:  Length of @args
  * @node_id:  Not used (node possibly unknown)
@@ -388,7 +397,7 @@ void print_op_entries(void);
  *
  * Return: 0 on success or a negative errno.
  */
-int ebp_op_discover(const void *args, uint64_t arg_len,
+int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
     uint16_t node_id, const unsigned char src_mac[6]);
 
 /**
@@ -397,12 +406,12 @@ int ebp_op_discover(const void *args, uint64_t arg_len,
  * @life_time:     Lifetime of the buffer allocation.
  * @local_buff_id: Local buffer identifier where the allocated buffer's ID will be stored.
  * @node_id:       Target node id, 0 for broadcast.
- *
+ * @iid_out:       The invocation id of that call.
  * This function sends a remote allocation request to a distant node.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id);
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id, uint32_t *iid_out);
 
 /**
  * ebp_remote_write - Write data to a remote pre-allocated buffer.
@@ -411,12 +420,12 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,u
  * @size:    Size of the data payload to write.
  * @payload: Pointer to the data payload.
  * @node_id:    Target node id, 0 for broadcast.
- *
+ * @iid_out:       The invocation id of that call.
  * This function sends a request to write data to a remote node's buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id);
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id,uint32_t *iid_out);
 
 /**
  * ebp_remote_read - Read data from a remote pre-allocated buffer into a local buffer.
@@ -426,12 +435,12 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @src_offset:    Byte offset within the remote buffer where reading should start.
  * @size:          Number of bytes to read.
  * @node_id:       Target node id, 0 for broadcast.
- *
+ * @iid_out:       The invocation id of that call.
  * This function sends a request to read data from a remote node's buffer into a local buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id);
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id,uint32_t *iid_out);
 
 /**
  * ebp_register_node - Register a new node in the global node_infos array.
@@ -629,5 +638,39 @@ int ebp_handle_invoke_ack(struct sk_buff *skb,struct net_device *dev,struct ethh
  */
 int ebp_handle_invoke(struct sk_buff *skb,struct net_device *dev,struct ethhdr *eth,struct ebp_header *hdr);
 
+
+
+/* ===================================================================== */
+/*                       INVOCATION–WAIT SUPPORT                         */
+/* ===================================================================== */
+
+/**
+ * struct iid_waiter - one sleeping task waiting for an Invoke-ACK
+ * @iid:            Invocation-ID of interest (0 == slot unused)
+ * @wanted_status:  ACK status that will wake the task
+ * @task:           pointer to the task_struct that is sleeping
+ * @done:           set to 1 by the waker before *task* is readied
+ * @rc:             return code copied back to user (-ETIMEDOUT, 0, …)
+ */
+struct iid_waiter {
+    uint32_t           iid;
+    uint8_t            wanted_status;
+    struct task_struct *task;
+    int                done;
+    int                rc;
+};
+
+#define MAX_WAITERS   32          /* static table – small on purpose   */
+/**
+ * waiter_alloc() - reserve a slot in iid_waiters[]
+ *
+ * @iid:           Invocation-ID that the future waiter will watch
+ * @wanted_stat:   status byte that will wake it
+ * @tsk:           sleeping task_struct (may be NULL for pre-registration)
+ *
+ * Return: pointer to the freshly initialised slot, or NULL if the table is
+ *         full.  Caller must hold waiter_lock.
+ */
+struct iid_waiter * waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk);
 
 #endif

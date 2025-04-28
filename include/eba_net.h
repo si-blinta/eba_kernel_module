@@ -84,6 +84,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
 
 /**
  * build_invoke_ack_packet - Build an Invoke Acknowledgment packet.
+ * @iid:         Invocation ID (caller-defined).
  * @status:  8-bit status code (enum INVOKE_STATUS) to embed in the ACK.
  * @data:    Operation specific data.
  * @out_len: Pointer to a variable that returns the total packet length.
@@ -93,7 +94,7 @@ char *build_invoke_req_packet(uint32_t iid, uint32_t opid,
  *
  * Return: Pointer to the allocated packet on success, or NULL on failure.
  */
-char *build_invoke_ack_packet(uint8_t status, uint64_t data, uint64_t *out_len);
+char *build_invoke_ack_packet(uint32_t iid,uint8_t status, uint64_t data,uint64_t *out_len);
 
 /**
  * send_discover_req_packet - Build and send an EBP_MSG_DISCOVER packet.
@@ -142,6 +143,7 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
 
 /**
  * send_invoke_ack_packet - Build and send an EBP_MSG_INVOKE_ACK response packet.
+ * @iid:      32-bit Invocation ID.
  * @data:     Operation specific data.
  * @status:   Status code to embed in the ACK.
  * @dest_mac: Destination node's MAC address.
@@ -149,8 +151,6 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
  *
  * Return: 0 on success or a negative error code on failure.
  */
-int send_invoke_ack_packet(uint8_t status, uint64_t data,
-    const unsigned char dest_mac[6],
-    const char *ifname);
+int send_invoke_ack_packet(uint32_t iid, uint8_t status, uint64_t data, const unsigned char dst_mac[6], const char *ifname);
 
 #endif
