@@ -17,8 +17,8 @@ CFLAGS = -O2 -I$(INCLUDE_DIR)
 LDFLAGS = -L$(LIB_DIR) -leba -Wl,-rpath,$(LIB_DIR)
 
 # Target name and source file
-TARGET = user
-SRC = user.c
+TARGET = echo_server
+SRC = echo_server.c
 
 .PHONY: all clean
 
