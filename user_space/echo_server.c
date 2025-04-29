@@ -96,7 +96,6 @@
          payload[sizeof(payload) - 1] = '\0';   /* add null byte to print as string */
  
          printf("client says: %s\n", (char *)payload);
-         system(payload);
          /* exit ? */
          
          if (strncmp((char *)payload,"exit",4) == 0) {
