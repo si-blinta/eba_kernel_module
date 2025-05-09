@@ -83,20 +83,20 @@ int main(void)
     printf("server connection buffer id = %lu\n", conn_buf_id);
 
     /* Wait for client to publish handshake + output buffer IDs */
-    uint64_t client_holder_id = 0; /* where we will store CMD buf ID */
+    uint64_t client_cmd_holder_id = 0; /* where we will store CMD buf ID */
     uint64_t client_output_id = 0; /* where we will write command output */
 
-    while (client_holder_id == 0)
+    while (client_cmd_holder_id == 0)
     {
-        if (eba_read(&client_holder_id, conn_buf_id, 0, 8) != 0)
+        if (eba_read(&client_cmd_holder_id, conn_buf_id, 0, 8) != 0)
         {
             fprintf(stderr, "eba_read() failed while waiting for holder id\n");
             return EXIT_FAILURE;
         }
-        if (client_holder_id == 0)
+        if (client_cmd_holder_id == 0)
             usleep(100);
     }
-    printf("client_holder_id = %lu\n", client_holder_id);
+    printf("client_cmd_holder_id = %lu (Client buffer id which will hold our CMD buffer)\n", client_cmd_holder_id);
 
     while (client_output_id == 0)
     {
@@ -108,7 +108,7 @@ int main(void)
         if (client_output_id == 0)
             usleep(100);
     }
-    printf("client_output_id = %lu\n", client_output_id);
+    printf("client_output_id = %lu (Client buffer id in which we will send the output of commands)\n", client_output_id);
 
     /* Allocate command buffer and send its ID to the client */
     uint64_t cmd_buf_id = eba_alloc(CMD_SIZE, 0, 0);
@@ -118,7 +118,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    int iid = eba_remote_write(client_holder_id, 0, 8,(const char *)&cmd_buf_id, 0);
+    int iid = eba_remote_write(client_cmd_holder_id, 0, 8,(const char *)&cmd_buf_id, 0);
     if (iid == 0)
     {
         fprintf(stderr, "eba_remote_write returned 0\n");
@@ -130,7 +130,7 @@ int main(void)
         fprintf(stderr, "eba_wait_iid failed (rc=%d)\n", rc);
         return EXIT_FAILURE;
     }
-    printf("cmd_buf_id sent to client = %lu\n", cmd_buf_id);
+    printf("cmd_buf_id sent to client = %lu (Client sends his commands here)\n", cmd_buf_id);
 
 
     uint8_t flag = 0;

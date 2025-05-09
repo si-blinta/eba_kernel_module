@@ -660,7 +660,7 @@ struct iid_waiter {
     int                rc;
 };
 
-#define MAX_WAITERS   32          /* static table – small on purpose   */
+#define MAX_WAITERS   128          /* static table – small on purpose   */
 /**
  * waiter_alloc() - reserve a slot in iid_waiters[]
  *
