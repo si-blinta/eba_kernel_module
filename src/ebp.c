@@ -793,8 +793,7 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
     uint64_t data = be64_to_cpu(ack->data);
     EBA_DBG("%s: received ACK status=0x%02x from %pM\n",__func__, ack->status, eth->h_source);
     
-    unsigned long flags;
-    spin_lock_irqsave(&waiter_lock, flags);
+    spin_lock(&waiter_lock);
     for (int i = 0; i < MAX_WAITERS; i++) {
             struct iid_waiter *w = &iid_waiters[i];
 
@@ -809,7 +808,7 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
                             wake_up_process(w->task);
             }
     }
-    spin_unlock_irqrestore(&waiter_lock, flags);
+    spin_unlock(&waiter_lock);
 
     /* DISCOVER completed → ship our specs buffer to the peer          */
     if (ack->status == INVOKE_COMPLETED && data) {

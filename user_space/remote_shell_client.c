@@ -78,26 +78,14 @@ int main(void)
         fprintf(stderr, "eba_remote_write (handshake) returned 0\n");
         return EXIT_FAILURE;
     }
-    int rc = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-    if (rc < 0)
-    {
-        fprintf(stderr, "eba_wait_iid failed (handshake, rc=%d)\n", rc);
-        return EXIT_FAILURE;
-    }
-
-
     /* Wait for server to write its cmd buffer ID */
     uint64_t server_cmd_buf_id = 0;
-    while (server_cmd_buf_id == 0)
-    {
-        if (eba_read(&server_cmd_buf_id, client_cmd_id_holder, 0, 8) != 0)
+    eba_wait_buffer(client_cmd_id_holder, 0);
+     if (eba_read(&server_cmd_buf_id, client_cmd_id_holder, 0, 8) != 0)
         {
             fprintf(stderr, "eba_read() failed while waiting for cmd buffer id\n");
             return EXIT_FAILURE;
         }
-        if (server_cmd_buf_id == 0)
-            usleep(100);
-    }
     printf("received server cmd buffer id = %lu\n", server_cmd_buf_id);
 
     for (;;)
@@ -122,33 +110,13 @@ int main(void)
             fprintf(stderr, "eba_remote_write (cmd) returned 0\n");
             return EXIT_FAILURE;
         }
-        rc = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-        if (rc < 0)
-        {
-            fprintf(stderr, "eba_wait_iid failed (cmd, rc=%d)\n", rc);
-            return EXIT_FAILURE;
-        }
-
+        eba_wait_buffer(client_out_id,0);
         /* Exit shortcut */
         if (strncmp(line, "exit", 4) == 0)
         {
             puts("bye!");
             break;
         }
-
-        /* Wait for server to write a byte into output buffer */
-        uint8_t flag = 0;
-        while (flag == 0)
-        {
-            if (eba_read(&flag, client_out_id, 0, 1) != 0)
-            {
-                fprintf(stderr, "eba_read() failed on output flag\n");
-                return EXIT_FAILURE;
-            }
-            if (flag == 0)
-                usleep(100);
-        }
-
         /* Read and print captured output */
         char cmd_output[OUTPUT_SIZE] = {0};
         if (eba_read(cmd_output, client_out_id, 0, sizeof(cmd_output)) != 0)
@@ -157,14 +125,6 @@ int main(void)
             return EXIT_FAILURE;
         }
         printf("%s", cmd_output);
-
-        /* Clear the flag so server knows we consumed the output */
-        uint8_t zero = 0;
-        if (eba_write(&zero, client_out_id, 0, 1) != 0)
-        {
-            fprintf(stderr, "eba_write() failed while clearing output flag\n");
-            return EXIT_FAILURE;
-        }
     }
 
     return EXIT_SUCCESS;

@@ -39,6 +39,7 @@ enum INVOKE_STATUS
 static void execute_cmd(const char *cmd, char out[OUTPUT_SIZE])
 {    
     
+    printf("cd command received: '%s'\n", cmd);
     if (strncmp(cmd, "cd", 2) == 0)
     {
         const char *path = cmd + 3;
@@ -47,8 +48,6 @@ static void execute_cmd(const char *cmd, char out[OUTPUT_SIZE])
             perror("chdir failed");
             exit(EXIT_FAILURE);
         }
-        printf("cd command received: '%s'\n", cmd);
-        sprintf(out,"changed directory\n");
         return;
     }
 
@@ -85,28 +84,26 @@ int main(void)
     /* Wait for client to publish handshake + output buffer IDs */
     uint64_t client_cmd_holder_id = 0; /* where we will store CMD buf ID */
     uint64_t client_output_id = 0; /* where we will write command output */
-
-    while (client_cmd_holder_id == 0)
+    /* Wait for client to write the two IDs */
+    if (eba_read(&client_cmd_holder_id, conn_buf_id, 0, 8) != 0)
     {
+        fprintf(stderr, "eba_read() failed while waiting for holder id\n");
+        return EXIT_FAILURE;
+    }
+    if(client_cmd_holder_id == 0)
+    {
+        eba_wait_buffer(conn_buf_id, 0);
         if (eba_read(&client_cmd_holder_id, conn_buf_id, 0, 8) != 0)
         {
             fprintf(stderr, "eba_read() failed while waiting for holder id\n");
             return EXIT_FAILURE;
         }
-        if (client_cmd_holder_id == 0)
-            usleep(100);
     }
     printf("client_cmd_holder_id = %lu (Client buffer id which will hold our CMD buffer)\n", client_cmd_holder_id);
-
-    while (client_output_id == 0)
+    if (eba_read(&client_output_id, conn_buf_id, 8, 8) != 0)
     {
-        if (eba_read(&client_output_id, conn_buf_id, 8, 8) != 0)
-        {
-            fprintf(stderr, "eba_read() failed while waiting for output id\n");
-            return EXIT_FAILURE;
-        }
-        if (client_output_id == 0)
-            usleep(100);
+        fprintf(stderr, "eba_read() failed while waiting for output id\n");
+        return EXIT_FAILURE;
     }
     printf("client_output_id = %lu (Client buffer id in which we will send the output of commands)\n", client_output_id);
 
@@ -124,37 +121,27 @@ int main(void)
         fprintf(stderr, "eba_remote_write returned 0\n");
         return EXIT_FAILURE;
     }
-    int rc = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-    if (rc < 0)
-    {
-        fprintf(stderr, "eba_wait_iid failed (rc=%d)\n", rc);
-        return EXIT_FAILURE;
-    }
     printf("cmd_buf_id sent to client = %lu (Client sends his commands here)\n", cmd_buf_id);
 
 
-    uint8_t flag = 0;
-    uint8_t cmd[CMD_SIZE] = {0};
+
 
     for (;;)
     {
-        /* Spin until client writes to cmd buf */
-        while (flag == 0)
-        {
-            if (eba_read(&flag, cmd_buf_id, 0, 1) != 0)
-            {
-                fprintf(stderr, "eba_read() failed on flag byte\n");
-                return EXIT_FAILURE;
-            }
-            if (flag == 0)
-                usleep(100);
-        }
-
-        /* Read full command */
+        uint8_t cmd[CMD_SIZE] = {0};
         if (eba_read(cmd, cmd_buf_id, 0, sizeof(cmd)) != 0)
         {
             fprintf(stderr, "eba_read() failed on command\n");
             return EXIT_FAILURE;
+        }
+        if(cmd[0] == 0)
+        {
+           eba_wait_buffer(cmd_buf_id,0);
+           if (eba_read(cmd, cmd_buf_id, 0, sizeof(cmd)) != 0)
+            {
+                fprintf(stderr, "eba_read() failed on command\n");
+                return EXIT_FAILURE;
+            }
         }
         cmd[CMD_SIZE - 1] = '\0';
 
@@ -177,7 +164,7 @@ int main(void)
         }
 
         /* Reset flag byte for next round */
-        flag = 0;
+        uint8_t flag = 0;
         if (eba_write(&flag, cmd_buf_id, 0, 1) != 0)
         {
             fprintf(stderr, "eba_write() failed while clearing flag\n");
@@ -185,4 +172,3 @@ int main(void)
         }
     }
 }
-// Todo handle cd 
