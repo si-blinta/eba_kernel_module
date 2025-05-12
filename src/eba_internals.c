@@ -313,8 +313,10 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
 
      /* Copy the data into the allocated buffer at the specified offset */
      memcpy((void *)(buf->address + off), data, size);
-     spin_unlock(&buf->lock);
      EBA_DBG("%s: buf=%p off=%llu size=%llu\n",__func__, (void*)buff_id, off, size);
+     spin_unlock(&buf->lock);
+     /* Wake the process that is waiting on that buffer */
+
      return 0;
 }
 

@@ -262,3 +262,26 @@ int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms)
             return 1;               /* timed out */
         return wi.rc;          /* 0 on success, negative on error     */
 }
+int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms)
+{   
+    struct eba_wait_buffer wb = {
+        .buff_id = buffer_id,
+        .timeout_ms = timeout_ms,
+        .rc = -EINTR,
+        .timed_out = 0
+    };
+    int fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+
+    if (ioctl(fd, EBA_IOCTL_WAIT_BUFFER, &wb) < 0) {
+        perror("ioctl(EBA_IOCTL_WAIT_BUFFER)");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+
+    if (wb.timed_out)
+        return 1;               /* timed out */
+    return wb.rc;          /* 0 on success, negative on error     */
+}

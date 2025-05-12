@@ -135,4 +135,6 @@ int eba_export_node_specs(void);
 int eba_get_node_infos(struct eba_node_info *out);
 
 int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms);
+
+int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms);
 #endif

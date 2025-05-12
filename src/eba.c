@@ -44,6 +44,7 @@ static dev_t eba_devno;
 static struct cdev eba_cdev;
 static struct class *eba_class = NULL;
 extern spinlock_t waiter_lock;
+extern spinlock_t buffer_waiter_lock;
 extern spinlock_t node_info_lock;
 
 extern struct node_info node_infos[MAX_NODE_COUNT];
@@ -210,7 +211,7 @@ static long eba_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
           struct iid_waiter *w;
           spin_lock(&waiter_lock);
 
-          w = waiter_alloc(wi.iid, wi.wanted_status, current);
+          w = iid_waiter_alloc(wi.iid, wi.wanted_status, current);
           if (!w)
           {
                spin_unlock(&waiter_lock);
@@ -244,6 +245,53 @@ static long eba_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
           }
           ret = 0;
           break;
+     
+     case EBA_IOCTL_WAIT_BUFFER:
+
+          struct eba_wait_buffer wb;
+          if (copy_from_user(&wb, (void __user *)arg, sizeof(wb)))
+          {
+               ret = -EFAULT;
+               break;
+          }
+           /* ---------- register the waiter ------------------------------ */
+          struct buffer_waiter *bw;
+          spin_lock(&buffer_waiter_lock);
+
+          bw = buffer_waiter_alloc(wb.buff_id,current);
+          if (bw == NULL)
+          {
+               spin_unlock(&buffer_waiter_lock);
+               wb.rc = -ENOSPC;
+               goto copy_to_usr_buf;
+          }
+          spin_unlock(&buffer_waiter_lock);
+          /* ---------- sleep ------------------------------------------- */
+           set_current_state(TASK_INTERRUPTIBLE);
+
+          if (wb.timeout_ms)
+               schedule_timeout(msecs_to_jiffies(wb.timeout_ms));
+          else
+               schedule(); /* unlimited                    */
+
+          /* ---------- running again ----------------------------------- */
+          wb.rc = bw->rc;
+          wb.timed_out= (bw->done == 0); /* timed out = 1 if the buffer is never written onto it  */
+          /* free the slot                                                */
+          spin_lock(&buffer_waiter_lock);
+          bw->buffer_id = 0;
+          spin_unlock(&buffer_waiter_lock);
+
+     copy_to_usr_buf:
+          if (copy_to_user((void __user *)arg, &wb, sizeof(wb)))
+          {
+               ret =  -EFAULT;
+               break;
+          }
+          ret = 0;
+          break;
+
+
      default:
 
           ret = -ENOTTY;

@@ -90,8 +90,10 @@
 
 #define EBA_IOCTL_WAIT_IID  _IOWR(EBA_IOC_MAGIC, 10, struct eba_wait_iid)
 
+#define EBA_IOCTL_WAIT_BUFFER  _IOWR(EBA_IOC_MAGIC, 11, struct eba_wait_buffer)
+
 /** Maximum number of EBA IOCTL commands supported. */
-#define EBA_IOC_MAXNR 10
+#define EBA_IOC_MAXNR 11
 
 /* Logging Macros */
 
@@ -240,6 +242,21 @@ struct eba_node_info {
 struct eba_wait_iid {
     __u32  iid;
     __u8   wanted_status;
+    __u32  timeout_ms;
+    __s32  rc;
+    __u8   timed_out;
+};
+
+
+/**
+ * struct eba_wait_buffer - userspace argument for EBA_IOCTL_WAIT_BUFFER
+ * @buff_id:       Buffer-ID to wait for
+ * @timeout_ms:    maximum time to sleep (0 == infinite)
+ * @rc:            filled by the driver (0, -ETIMEDOUT, -ENOSPC, …)
+ * @timed_out      0 = woke-up because of a write , 1 = woke-up because of timeout
+ */
+struct eba_wait_buffer {
+    __u64  buff_id;
     __u32  timeout_ms;
     __s32  rc;
     __u8   timed_out;

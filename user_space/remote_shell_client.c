@@ -48,7 +48,7 @@ int main(void)
     }
     getchar(); /* consume newline left by scanf */
 
-    /* Allocate handshake buffer and publish its ID*/
+    /* Allocate handshake buffer*/
     uint64_t client_cmd_id_holder = eba_alloc(8, 0, 0);
     if (client_cmd_id_holder == 0)
     {
@@ -57,7 +57,22 @@ int main(void)
     }
     printf("client cmd buffer id holder = %lu (the server will send the id of CMD buffer here)\n", client_cmd_id_holder);
 
-    int iid = eba_remote_write(server_conn_id, 0, sizeof(client_cmd_id_holder), (const char *)&client_cmd_id_holder, 0);
+    /* Allocate output buffer*/
+    uint64_t client_out_id = eba_alloc(OUTPUT_SIZE, 0, 0);
+    if (client_out_id == 0)
+    {
+        fprintf(stderr, "eba_alloc() failed for output buffer\n");
+        return EXIT_FAILURE;
+    }
+    printf("client output buffer id = %lu (The server will send the output of the commands executed here)\n", client_out_id);
+
+    /*publish both ids*/
+    //combine the two ids into a single buffer
+    char buf[16] = {0};
+    memcpy(buf, &client_cmd_id_holder, 8);
+    memcpy(buf + 8, &client_out_id, 8);
+    //send the buffer to the server
+    int iid = eba_remote_write(server_conn_id, 0, sizeof(buf), (const char *)buf, 0);
     if (iid == 0)
     {
         fprintf(stderr, "eba_remote_write (handshake) returned 0\n");
@@ -70,27 +85,6 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    /* Allocate output buffer and publish its ID*/
-    uint64_t client_out_id = eba_alloc(OUTPUT_SIZE, 0, 0);
-    if (client_out_id == 0)
-    {
-        fprintf(stderr, "eba_alloc() failed for output buffer\n");
-        return EXIT_FAILURE;
-    }
-    printf("client output buffer id = %lu (The server will send the output of the commands executed here)\n", client_out_id);
-
-    iid = eba_remote_write(server_conn_id, 8, sizeof(client_out_id), (const char *)&client_out_id, 0);
-    if (iid == 0)
-    {
-        fprintf(stderr, "eba_remote_write (output id) returned 0\n");
-        return EXIT_FAILURE;
-    }
-    rc = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-    if (rc < 0)
-    {
-        fprintf(stderr, "eba_wait_iid failed (output id, rc=%d)\n", rc);
-        return EXIT_FAILURE;
-    }
 
     /* Wait for server to write its cmd buffer ID */
     uint64_t server_cmd_buf_id = 0;

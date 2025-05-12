@@ -8,6 +8,8 @@
 
 struct iid_waiter iid_waiters[MAX_WAITERS];
 spinlock_t waiter_lock;        /* initialised in ebp_init() */
+spinlock_t buffer_waiter_lock;        /* initialised in ebp_init() */
+struct buffer_waiter buffer_waiters[MAX_BUFFER_WAITERS];
 spinlock_t node_info_lock;          /* initialised in ebp_init() */
 
 atomic_t ebp_iid_ctr = ATOMIC_INIT(1);
@@ -110,6 +112,7 @@ void ebp_init(void)
     dev_add_pack(&ebp_packet_type);
     spin_lock_init(&waiter_lock);
     spin_lock_init(&node_info_lock);
+    spin_lock_init(&buffer_waiter_lock);
     /* One‑time init of global tables (node list, op registry…). */
     node_info_array_init();
     invoke_tracker_array_init();
@@ -305,6 +308,19 @@ int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_
         return ret;
         
     }
+        spin_lock(&buffer_waiter_lock);
+        for (int i = 0; i < MAX_BUFFER_WAITERS; i++) {
+            struct buffer_waiter *bw= &buffer_waiters[i];
+
+            if (bw->buffer_id == wr->buff_id) {
+
+                    bw->done = 1;
+                    bw->rc   = 0;          /* success                 */
+                    if (bw->task)
+                            wake_up_process(bw->task);
+            }
+        }
+        spin_unlock(&buffer_waiter_lock);
     return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
 }
 
@@ -398,11 +414,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
     if (iid_out)
                 *iid_out = iid;
     int ret = send_invoke_req_packet(iid, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, "enp0s8");
-    
-    unsigned long flags;
-    spin_lock_irqsave(&waiter_lock, flags);
-    waiter_alloc(iid, 0 /* placeholder */, NULL);
-    spin_unlock_irqrestore(&waiter_lock, flags);
+
     
     if (ret < 0)
     {
@@ -442,10 +454,6 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
     if (iid_out)
                 *iid_out = iid;
     int ret = send_invoke_req_packet(iid, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , "enp0s8");
-    unsigned long flags;
-    spin_lock_irqsave(&waiter_lock, flags);
-    waiter_alloc(iid, 0 /* placeholder */, NULL);
-    spin_unlock_irqrestore(&waiter_lock, flags);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
@@ -485,10 +493,6 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     if (iid_out)
                 *iid_out = iid;
     int ret = send_invoke_req_packet(iid, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, "enp0s8");
-    unsigned long flags;
-    spin_lock_irqsave(&waiter_lock, flags);
-    waiter_alloc(iid, 0 /* placeholder */, NULL);
-    spin_unlock_irqrestore(&waiter_lock, flags);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
@@ -900,20 +904,27 @@ int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
     return send_invoke_ack_packet(iid,INVOKE_COMPLETED,(uint64_t)specs_buf,src_mac,"enp0s8");
 }
 
-/**
- * waiter_alloc() - reserve a slot in iid_waiters[]
- *
- * @iid:           Invocation-ID that the future waiter will watch
- * @wanted_stat:   status byte that will wake it
- * @tsk:           sleeping task_struct (may be NULL for pre-registration)
- *
- * Return: pointer to the freshly initialised slot, or NULL if the table is
- *         full.  Caller must hold waiter_lock.
- */
-struct iid_waiter * waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk)
+void dump_iid_waiters(void)
+{
+    int i;
+    EBA_DBG("%s: dumping iid_waiters\n", __func__);
+    for (i = 0; i < MAX_WAITERS; i++)
+    {
+        EBA_DBG("%s: slot=%d iid=%u status=%u task=%p done=%d rc=%d\n",
+            __func__, i,
+            iid_waiters[i].iid,
+            iid_waiters[i].wanted_status,
+            iid_waiters[i].task,
+            iid_waiters[i].done,
+            iid_waiters[i].rc);
+    }
+}
+
+
+struct iid_waiter * iid_waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk)
 {
         int i;
-
+        dump_iid_waiters();
         for (i = 0; i < MAX_WAITERS; i++) {
                 if (iid_waiters[i].iid == 0) {      /* free            */
                         iid_waiters[i].iid           = iid;
@@ -925,4 +936,38 @@ struct iid_waiter * waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *ts
                 }
         }
         return NULL;                                /* table full      */
+}
+
+
+
+void dump_buffer_waiters(void)
+{
+    int i;
+    EBA_DBG("%s: dumping buffer_waiters\n", __func__);
+    for (i = 0; i < MAX_BUFFER_WAITERS; i++)
+    {
+        EBA_DBG("%s: slot=%d buffer_id=%llu task=%p done=%d rc=%d\n",
+            __func__, i,
+            buffer_waiters[i].buffer_id,
+            buffer_waiters[i].task,
+            buffer_waiters[i].done,
+            buffer_waiters[i].rc);
+    }
+}
+struct buffer_waiter* buffer_waiter_alloc(uint64_t buffer_id, struct task_struct *tsk)
+{
+    int i ;
+    dump_buffer_waiters();
+    for(i = 0; i < MAX_BUFFER_WAITERS; i++)
+    {
+        if(buffer_waiters[i].buffer_id == 0)
+        {
+            buffer_waiters[i].buffer_id = buffer_id;
+            buffer_waiters[i].task = tsk;
+            buffer_waiters[i].done = 0;
+            buffer_waiters[i].rc = -ETIMEDOUT;
+            return &buffer_waiters[i];
+        }
+    }
+    return NULL; /* table full */
 }

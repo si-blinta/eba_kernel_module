@@ -662,7 +662,7 @@ struct iid_waiter {
 
 #define MAX_WAITERS   128          /* static table – small on purpose   */
 /**
- * waiter_alloc() - reserve a slot in iid_waiters[]
+ * iid_waiter_alloc() - reserve a slot in iid_waiters[]
  *
  * @iid:           Invocation-ID that the future waiter will watch
  * @wanted_stat:   status byte that will wake it
@@ -671,6 +671,64 @@ struct iid_waiter {
  * Return: pointer to the freshly initialised slot, or NULL if the table is
  *         full.  Caller must hold waiter_lock.
  */
-struct iid_waiter * waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk);
+struct iid_waiter * iid_waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk);
+
+/* ===================================================================== */
+/*                       BUFFER–WAIT SUPPORT                             */
+/* ===================================================================== */
+
+/**
+ * struct buffer_waiter - Represents a task waiting for a specific buffer.
+ * @buffer_id: The unique identifier of the buffer being waited on.
+ * @task:      Pointer to the task_struct representing the waiting task.
+ * @done:      Set to 1 when the buffer operation is complete.
+ * @rc:        Return code indicating the result of the buffer operation.
+ *
+ * This structure is used to manage tasks that are waiting for a specific
+ * buffer operation (e.g., write completion) to complete. It allows for
+ * synchronization and signaling between the buffer operation and the
+ * waiting task.
+ */
+struct buffer_waiter {
+    uint64_t buffer_id;
+    struct task_struct *task;
+    int done;
+    int rc;
+};
+
+#define MAX_BUFFER_WAITERS   128          /* static table – small on purpose   */
+/**
+ * buffer_waiter_alloc - Allocates a buffer waiter structure.
+ * @buffer_id: The unique identifier of the buffer.
+ * @tsk: Pointer to the task_struct representing the task associated with the buffer waiter.
+ *
+ * This function creates and initializes a buffer waiter structure for the specified
+ * buffer ID and task. It is typically used to manage tasks waiting on a specific buffer.
+ *
+ * Return: Pointer to the allocated buffer_waiter structure, or NULL on failure.
+ */
+struct buffer_waiter * buffer_waiter_alloc(uint64_t buffer_id, struct task_struct *tsk);
+
+/**
+ * dump_iid_waiters - Dumps information about all IID waiters.
+ *
+ * This function outputs debugging information about all the IID waiters
+ * currently being tracked. It is useful for debugging and monitoring
+ * the state of IID waiters in the system.
+ */
+void dump_iid_waiters(void);
+
+/**
+ * dump_buffer_waiters - Dumps information about all buffer waiters.
+ *
+ * This function outputs debugging information about all the buffer waiters
+ * currently being tracked. It is useful for debugging and monitoring
+ * the state of buffer waiters in the system.
+ */
+void dump_buffer_waiters(void);
+
+
+
+
 
 #endif
