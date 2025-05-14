@@ -46,13 +46,13 @@ int main(void) {
             break;
 
         ntoks = tokenize(line, tok, MAX_TOKENS);
-        if (ntoks == 0) 
+        if (ntoks == 0)
             continue;
 
-        if (strcmp(tok[0], "exit")==0 || strcmp(tok[0], "quit")==0) {
+        if (strcmp(tok[0], "exit") == 0 || strcmp(tok[0], "quit") == 0) {
             break;
         }
-        else if (strcmp(tok[0], "help")==0) {
+        else if (strcmp(tok[0], "help") == 0) {
             puts(
             "Commands:\n"
             "  alloc <size> <lifetime>\n"
@@ -64,6 +64,9 @@ int main(void) {
             "  discover\n"
             "  export\n"
             "  get_node_infos\n"
+            "  register_queue <buf_id>\n"
+            "  enqueue <buf_id> <payload>\n"
+            "  dequeue <buf_id> <size>\n"
             "  exit\n"
             );
         }
@@ -180,6 +183,31 @@ int main(void) {
                        m[0],m[1],m[2],m[3],m[4],m[5],
                        (unsigned long long)infos[i].node_specs);
             }
+        }
+        else if (strcmp(tok[0], "register_queue") == 0 && ntoks == 2) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            printf("Registering queue as buffer  %llu\n", (unsigned long long)buf_id);
+            eba_register_queue(buf_id);
+        }
+        else if (strcmp(tok[0], "enqueue") == 0 && ntoks == 3) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            char *payload = tok[2];
+            uint64_t size   = strlen(payload);
+            printf("Enqueueing %llu bytes to buffer %llu. Payload: %s\n",
+               (unsigned long long)size,
+               (unsigned long long)buf_id,
+               payload);
+            eba_enqueue(buf_id, payload, size);
+        }
+        else if (strcmp(tok[0], "dequeue") == 0 && ntoks == 3) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            uint64_t size   = strtoull(tok[2], NULL, 0);
+            char data_out[512] = {0};
+            printf("Dequeuing %llu bytes from buffer %llu\n",
+               (unsigned long long)size,
+               (unsigned long long)buf_id);
+            eba_dequeue(buf_id, data_out, size);
+            printf("Dequeued item: \"%s\"\n", data_out);
         }
         else {
             printf("Unknown or malformed command. Type 'help' for list.\n");

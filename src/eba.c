@@ -45,6 +45,9 @@ static long handle_eba_ioctl_get_node_infos(unsigned long arg);
 static long handle_eba_ioctl_wait_iid(unsigned long arg);
 static long handle_eba_ioctl_wait_buffer(unsigned long arg);
 static long handle_eba_ioctl_register_service(unsigned long arg);
+static long handle_eba_ioctl_register_queue(unsigned long arg);
+static long handle_eba_ioctl_enqueue(unsigned long arg);
+static long handle_eba_ioctl_dequeue(unsigned long arg);
 /*
  * IOCTL handler --------------------------------------------------------
  */
@@ -97,6 +100,12 @@ static long eba_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
           return handle_eba_ioctl_wait_buffer(arg);
      case EBA_IOCTL_REGISTER_SERVICE:
           return handle_eba_ioctl_register_service(arg);
+     case EBA_IOCTL_REGISTER_QUEUE:
+          return handle_eba_ioctl_register_queue(arg);
+     case EBA_IOCTL_ENQUEUE:
+          return handle_eba_ioctl_enqueue(arg);
+     case EBA_IOCTL_DEQUEUE:
+          return handle_eba_ioctl_dequeue(arg);
      default:
           return -ENOTTY;
      }
@@ -324,6 +333,44 @@ static long handle_eba_ioctl_register_service(unsigned long arg)
      return ret;
 }
 
+static long handle_eba_ioctl_register_queue(unsigned long arg)
+{
+     struct eba_register_queue rq;
+     if (copy_from_user(&rq, (void __user *)arg, sizeof(rq)))
+          return -EFAULT;
+
+     int ret = register_queue(rq.buff_id);
+     if (copy_to_user((void __user *)arg, &rq, sizeof(rq)))
+          return -EFAULT;
+
+     return ret;
+}
+
+static long handle_eba_ioctl_enqueue(unsigned long arg)
+{
+     struct eba_enqueue enq;
+     if (copy_from_user(&enq, (void __user *)arg, sizeof(enq)))
+          return -EFAULT;
+
+     int ret = eba_internals_enqueue(enq.buff_id, (void *)enq.data, enq.size);
+     if (copy_to_user((void __user *)arg, &enq, sizeof(enq)))
+          return -EFAULT;
+
+     return ret;
+}
+static long handle_eba_ioctl_dequeue(unsigned long arg)
+{
+     struct eba_dequeue deq;
+     if (copy_from_user(&deq, (void __user *)arg, sizeof(deq)))
+          return -EFAULT;
+
+     int ret = eba_internals_dequeue(deq.buff_id, (void *)deq.data, deq.size);
+     if (copy_to_user((void __user *)arg, &deq, sizeof(deq)))
+          return -EFAULT;
+
+     return ret;
+}
+
 /* Timer for checking expired buffers */
 static struct timer_list eba_expired_buf_timer;
 
@@ -411,9 +458,6 @@ static int __init eba_module_init(void)
      mod_timer(&eba_expired_buf_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
 
      ebp_init();
-     /*eba_internals_mem_stress_test();
-     eba_internals_rw_stress_test();*/
-
      EBA_INFO("Module loaded\n");
      return 0;
 

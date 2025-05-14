@@ -561,3 +561,213 @@ int register_service(uint64_t buff_id, uint64_t new_id)
      spin_unlock(&buf->lock);
      return 0;
 }
+
+//*========================================================================*/
+/*                      Registering buffers as queue                       */
+/*========================================================================*/
+
+int register_queue(uint64_t buff_id)
+{
+     struct eba_buffer *buf;
+     int found = 0;
+
+     /* Lookup buffer by its id */
+     spin_lock(&eba_buffer_list_lock);
+     list_for_each_entry(buf, &eba_buffer_list, node)
+     {
+          if (buf->id == buff_id)
+          {
+               found = 1;
+               break;
+          }
+     }
+     spin_unlock(&eba_buffer_list_lock);
+
+     if (!found)
+     {
+          EBA_ERR("%s: Buffer with id %llu not found\n",__func__, buff_id);
+          return -EINVAL; /* Buffer not found */
+     }    
+     /*make the buffer like a queue, first two 8 bytes will hold the head and tail and the rest will be the data*/
+     spin_lock(&buf->lock);
+     buf->address = (unsigned long)buf->address + sizeof(struct queue);
+     buf->size = buf->size - sizeof(struct queue);
+     spin_unlock(&buf->lock);
+     /*initialize the head and tail*/
+     struct queue *q = (struct queue *)buf->address;
+     q->head = 0;
+     q->tail = 0;
+     EBA_DBG("%s: id=%llu head=%llu tail=%llu\n",__func__, buff_id, q->head, q->tail);
+     return 0;
+}
+
+int eba_internals_enqueue(uint64_t buff_id, void *data, uint64_t size)
+{
+     struct eba_buffer *buf;
+     int found = 0;
+
+     /* Lookup buffer by its id */
+     spin_lock(&eba_buffer_list_lock);
+     list_for_each_entry(buf, &eba_buffer_list, node)
+     {
+          if (buf->id == buff_id)
+          {
+               found = 1;
+               break;
+          }
+     }
+     spin_unlock(&eba_buffer_list_lock);
+
+     if (!found)
+     {
+          EBA_ERR("%s: Buffer with id %llu not found\n", __func__, buff_id);
+          return -EINVAL; /* Buffer not found */
+     }    
+     spin_lock(&buf->lock);
+     struct queue *q = (struct queue *)buf->address;
+
+     /* Check if the queue is full using both head and tail.*/
+     if ((q->tail + 1) % buf->size == q->head)
+     {
+          EBA_ERR("%s: Queue is full\n", __func__);
+          spin_unlock(&buf->lock);
+          return -ENOMEM; /* Queue is full */
+     }
+
+     /* Enqueue the data at the current tail index; account for queue header offset */
+     memcpy((void *)(buf->address + sizeof(struct queue) + q->tail), data, size);
+
+     /* Update tail pointer by the size of the enqueued data */
+     q->tail = (q->tail + size) % buf->size;
+
+     EBA_DBG("%s: id=%llu head=%llu tail=%llu\n", __func__, buff_id, q->head, q->tail);
+     spin_unlock(&buf->lock);
+     return 0;
+}
+
+int eba_internals_dequeue(uint64_t buff_id, void *data_out, uint64_t size)
+{
+     struct eba_buffer *buf;
+     int found = 0;
+
+     /* Lookup buffer by its id */
+     spin_lock(&eba_buffer_list_lock);
+     list_for_each_entry(buf, &eba_buffer_list, node)
+     {
+          if (buf->id == buff_id)
+          {
+               found = 1;
+               break;
+          }
+     }
+     spin_unlock(&eba_buffer_list_lock);
+
+     if (!found)
+     {
+          EBA_ERR("%s: Buffer with id %llu not found\n", __func__, buff_id);
+          return -EINVAL; /* Buffer not found */
+     }    
+     spin_lock(&buf->lock);
+     struct queue *q = (struct queue *)buf->address;
+
+     /* Check if the queue is empty using both head and tail.*/
+     if (q->head == q->tail)
+     {
+          EBA_ERR("%s: Queue is empty\n", __func__);
+          spin_unlock(&buf->lock);
+          return -ENOMEM; /* Queue is empty */
+     }
+
+     /* Dequeue the data_out from the current head index; account for queue header offset */
+     memcpy(data_out, (void *)(buf->address + sizeof(struct queue) + q->head), size);
+
+     /* Update head pointer by the size of the dequeued data */
+     q->head = (q->head + size) % buf->size;
+
+     EBA_DBG("%s: id=%llu head=%llu tail=%llu\n", __func__, buff_id, q->head, q->tail);
+     spin_unlock(&buf->lock);
+     return 0;
+}
+
+int eba_internals_queue_stress_test(void)
+{
+     int ret;
+     uint64_t buff_id;
+     int queue_buffer_size = 128;   /* Total size including the queue control block */
+     int num_items = 10;            /* Number of items to test enqueue/dequeue */
+     int i;
+     int data, out_data;
+
+     /* Allocate a buffer that will be used as a queue.
+        Note: The buffer must be large enough to hold the struct queue
+        and the actual data. */
+     buff_id = eba_internals_malloc(queue_buffer_size, 0); /* Infinite lifetime */
+     if (!buff_id)
+     {
+          EBA_ERR("FAIL: Queue stress test: allocation failed\n");
+          return -ENOMEM;
+     }
+     else {
+          EBA_DBG("SUCCESS: Allocated queue buffer with buff_id = %llu\n", buff_id);
+     }
+
+     /* Register the buffer as a queue.
+        This adjusts the buffer pointer and size appropriately. */
+     ret = register_queue(buff_id);
+     if (ret != 0)
+     {
+          EBA_ERR("FAIL: Queue stress test: register queue failed\n");
+          eba_internals_free(buff_id);
+          return ret;
+     }
+     else
+     {
+          EBA_DBG("SUCCESS: Registered buffer as queue, buff_id = %llu\n", buff_id);
+     }
+
+     /* Enqueue phase: enqueue a few integer items */
+     for (i = 0; i < num_items; i++)
+     {
+          data = i;
+          ret = eba_internals_enqueue(buff_id, &data, sizeof(data));
+          if (ret != 0)
+          {
+               EBA_ERR("FAIL: Queue stress test: enqueue failed at index %d\n", i);
+               goto cleanup;
+          }
+          else
+          {
+               EBA_DBG("SUCCESS: Enqueued item %d at index %d\n", data, i);
+          }
+     }
+
+     /* Dequeue phase: remove items from the queue and verify */
+     for (i = 0; i < num_items; i++)
+     {
+          ret = eba_internals_dequeue(buff_id, &out_data, sizeof(out_data));
+          if (ret != 0)
+          {
+               EBA_ERR("FAIL: Queue stress test: dequeue failed at index %d\n", i);
+               goto cleanup;
+          }
+          else if (out_data != i)
+          {
+               EBA_ERR("FAIL: Queue stress test: data mismatch at index %d, expected %d but got %d\n", i, i, out_data);
+               ret = -EINVAL;
+               goto cleanup;
+          }
+          else
+          {
+               EBA_DBG("SUCCESS: Dequeued item %d at index %d\n", out_data, i);
+          }
+     }
+
+     EBA_INFO("SUCCESS: Queue stress test passed\n");
+     ret = 0;
+
+cleanup:
+     eba_internals_free(buff_id);
+     if(ret != 0)
+          EBA_DBG("FAIL: Queue stress test encountered errors, ret = %d\n", ret);
+     return ret;
+}

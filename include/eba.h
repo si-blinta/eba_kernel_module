@@ -11,7 +11,7 @@
 #define _EBA_H
 #include <linux/ioctl.h>
 #include <linux/types.h>
-
+#include <stdbool.h>
 /* IOCTL Magic Number */
 
 /** EBA IOCTL magic number used to create unique IOCTL command codes. */
@@ -93,6 +93,12 @@
 #define EBA_IOCTL_WAIT_BUFFER  _IOWR(EBA_IOC_MAGIC, 11, struct eba_wait_buffer)
 
 #define EBA_IOCTL_REGISTER_SERVICE _IOWR(EBA_IOC_MAGIC, 12, struct eba_register_service)
+
+#define EBA_IOCTL_REGISTER_QUEUE _IOWR(EBA_IOC_MAGIC, 13, struct eba_register_queue)
+
+#define EBA_IOCTL_ENQUEUE _IOWR(EBA_IOC_MAGIC, 14, struct eba_enqueue)
+
+#define EBA_IOCTL_DEQUEUE _IOWR(EBA_IOC_MAGIC, 15, struct eba_dequeue)
 
 /* Logging Macros */
 
@@ -277,6 +283,41 @@ struct eba_register_service
 {
     __u64  buff_id;
     __u64  new_id;
+};
+
+/**
+ * struct eba_register_queue - userspace argument for EBA_IOCTL_REGISTER_QUEUE
+ * @buff_id:       Buffer-ID to register as a queue
+ */
+struct eba_register_queue
+{
+    __u64  buff_id;
+};
+
+/**
+ * struct eba_enqueue - userspace argument for EBA_IOCTL_ENQUEUE
+ * @buff_id:       Buffer-ID to enqueue data into
+ * @data:         Pointer to the data to enqueue
+ * @size:         Number of bytes to enqueue
+ */
+struct eba_enqueue
+{
+    __u64  buff_id;
+    __u64  data;
+    __u64  size;
+};
+
+/**
+ * struct eba_dequeue - userspace argument for EBA_IOCTL_DEQUEUE
+ * @buff_id:       Buffer-ID to dequeue data from
+ * @data:         Pointer to the data to dequeue
+ * @size:         Number of bytes to dequeue
+ */
+struct eba_dequeue
+{
+    __u64  buff_id;
+    __u64  data;
+    __u64  size;
 };
 
 #endif /* _EBA_H */

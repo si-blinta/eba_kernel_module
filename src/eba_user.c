@@ -309,3 +309,75 @@ int eba_register_service(uint64_t buff_id, uint64_t new_id)
     }
     return 0 ;
 }
+
+int eba_register_queue(uint64_t buff_id)
+{
+    int fd, ret;
+    struct eba_register_queue rq;
+
+    /* Zero out structure, then fill fields */
+    memset(&rq, 0, sizeof(rq));
+    rq.buff_id = buff_id;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_REGISTER_QUEUE, &rq);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_REGISTER_QUEUE)");
+        return -1;
+    }
+    return 0 ;
+}
+
+int eba_enqueue(uint64_t buff_id, void *data, uint64_t size)
+{
+    int fd, ret;
+    struct eba_enqueue enq;
+
+    /* Zero out structure, then fill fields */
+    memset(&enq, 0, sizeof(enq));
+    enq.buff_id = buff_id;
+    enq.data = (uint64_t)data;
+    enq.size = size;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_ENQUEUE, &enq);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_ENQUEUE)");
+        return -1;
+    }
+    return 0 ;
+}
+int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size)
+{
+    int fd, ret;
+    struct eba_dequeue deq;
+
+    /* Zero out structure, then fill fields */
+    memset(&deq, 0, sizeof(deq));
+    deq.buff_id = buff_id;
+    deq.data = (uint64_t)data_out;
+    deq.size = size;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_DEQUEUE, &deq);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_DEQUEUE)");
+        return -1;
+    }
+    return 0 ;
+}

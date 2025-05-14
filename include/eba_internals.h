@@ -164,4 +164,60 @@ void eba_check_expired_buffers(void);
  * Return: 0 on success, or a negative error code if the operation fails.
  */
 int register_service(uint64_t buff_id, uint64_t new_id);
+
+/**
+ * register_queue - Register a buffer as a queue.
+ * @buff_id: Identifier of the buffer to register.
+ * Return: 0 on success, or a negative error code if the operation fails.
+ */
+struct queue
+{
+     uint64_t head;
+     uint64_t tail;
+};
+
+/**
+ * register_queue - Register a buffer as a queue.
+ * @buff_id: Identifier of the buffer to register.
+ * Return: 0 on success, or a negative error code if the operation fails.
+ */
+int register_queue(uint64_t buff_id);
+
+/**
+ * eba_internals_enqueue - Enqueue data into an allocated buffer.
+ * @buff_id: Identifier of the buffer (returned by eba_internals_malloc).
+ * @data:    Pointer to the data to enqueue.
+ * @size:    Number of bytes to enqueue.
+ *
+ * This function locates the allocated buffer corresponding to @buff_id, verifies that the
+ * enqueue operation is valid, and copies data into the buffer.
+ *
+ * Return: 0 on success, or a negative error code (e.g., -EINVAL) if the operation fails.
+ */
+int eba_internals_enqueue(uint64_t buff_id, void *data, uint64_t size);
+
+/**
+ * eba_internals_dequeue - Dequeue data from an allocated buffer.
+ * @buff_id: Identifier of the buffer (returned by eba_internals_malloc).
+ * @data_out: Pointer to the destination where dequeued data should be stored.
+ * @size: Number of bytes to dequeue.
+ *
+ * This function locates the allocated buffer corresponding to @buff_id, verifies that the
+ * dequeue operation is valid, and copies data from the buffer into the provided output pointer.
+ *
+ * Return: 0 on success, or a negative error code (e.g., -EINVAL) if the operation fails.
+ */
+int eba_internals_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
+
+
+/**
+ * eba_internals_queue_stress_test - Stress test for queue operations.
+ *
+ * This function allocates a buffer, registers it as a queue, enqueues a series of
+ * integer items, dequeues them, and verifies that the data matches the expected values.
+ *
+ * Return: 0 on success, or a negative error code if any operation fails.
+ */
+int eba_internals_queue_stress_test(void);
+
 #endif

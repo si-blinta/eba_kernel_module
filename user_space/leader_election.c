@@ -47,7 +47,13 @@ uint64_t get_mac_address() {
 int main()
 {
     
-
+    /* i want to do a leader election, we have 3 nodes, it means that each node will receive 2 mac addresseses, the problem is :
+    each node will wait to receive the mac addresses on the same buffer, nodes can overwrite other nodes buffers, whats the solution ?
+    imagine: node A and node B sends their mac addresses to node C, node C will only receive the last one because the buffer is overwritten.
+    the solution is to use a buffer for each node, so node A will send its mac address to node C and node B will send its mac address to node C, then node C will have 2 buffers, one for each node.
+    but this is bad, i want to have only one buffer, whats the solution ?
+    
+    */
 
 
 

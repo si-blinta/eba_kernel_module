@@ -140,7 +140,9 @@ int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms);
 
 int eba_register_service(uint64_t buff_id, uint64_t new_id);
 
-
+int eba_register_queue(uint64_t buff_id);
+int eba_enqueue(uint64_t buff_id, void *data, uint64_t size);
+int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
 
 #define EBA_SERVICE_REMOTE_SHELL 0x1
 #define EBA_SERVICE_HTTP 0x2
