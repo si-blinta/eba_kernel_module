@@ -83,8 +83,8 @@ int main()
     uint64_t node_2_buffer_id;
     eba_read(&node_1_buffer_id, node_1_buffer_id_holder, 0, 8);
     eba_read(&node_2_buffer_id, node_2_buffer_id_holder, 0, 8);
-    printf("node_1_buffer_id: %llu\n", node_1_buffer_id);
-    printf("node_2_buffer_id: %llu\n", node_2_buffer_id);
+    printf("node_1_buffer_id: %lu\n", node_1_buffer_id);
+    printf("node_2_buffer_id: %lu\n", node_2_buffer_id);
     
 
     iid = eba_remote_write(node_1_buffer_id,0, sizeof(int)*SIZE/3,(const char*)array+sizeof(int)*SIZE/3,1);

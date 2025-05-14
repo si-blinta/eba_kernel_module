@@ -39,16 +39,7 @@ int main(void)
 {
 
     /* Get server connection buffer ID*/
-    uint64_t server_conn_id = 0;
-    printf("Enter server connection buffer id: ");
-    if (scanf("%lu", &server_conn_id) != 1 || server_conn_id == 0)
-    {
-        fprintf(stderr, "Invalid buffer id\n");
-        return EXIT_FAILURE;
-    }
-    getchar(); /* consume newline left by scanf */
-
-    /* Allocate handshake buffer*/
+    uint64_t server_conn_id = EBA_SERVICE_REMOTE_SHELL;
     uint64_t client_cmd_id_holder = eba_alloc(8, 0, 0);
     if (client_cmd_id_holder == 0)
     {
