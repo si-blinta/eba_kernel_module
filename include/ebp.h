@@ -30,7 +30,7 @@
 /** Maximum number of invocation entries allowed. */
 #define MAX_INVOKE_COUNT  20
 /** Maximum number of operation entries allowed in the op_entries array. */
-#define MAX_OP_COUNT      5
+#define MAX_OP_COUNT      20
 #define MTU_OVERHEAD 38
 #define MINIMAL_MTU 512
 #define UNUSED_NODE_ID   0u    
