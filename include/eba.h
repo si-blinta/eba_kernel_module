@@ -92,8 +92,7 @@
 
 #define EBA_IOCTL_WAIT_BUFFER  _IOWR(EBA_IOC_MAGIC, 11, struct eba_wait_buffer)
 
-/** Maximum number of EBA IOCTL commands supported. */
-#define EBA_IOC_MAXNR 11
+#define EBA_IOCTL_REGISTER_SERVICE _IOWR(EBA_IOC_MAGIC, 12, struct eba_register_service)
 
 /* Logging Macros */
 
@@ -260,6 +259,17 @@ struct eba_wait_buffer {
     __u32  timeout_ms;
     __s32  rc;
     __u8   timed_out;
+};
+
+/**
+ * struct eba_register_service - userspace argument for EBA_IOCTL_REGISTER_SERVICE
+ * @buff_id:       Buffer-ID to register as a service
+ * @new_id:        New ID to register the service with
+ */
+struct eba_register_service
+{
+    __u64  buff_id;
+    __u64  new_id;
 };
 
 #endif /* _EBA_H */

@@ -17,8 +17,8 @@ CFLAGS = -O2 -I$(INCLUDE_DIR)
 LDFLAGS = -L$(LIB_DIR) -leba -Wl,-rpath,$(LIB_DIR)
 
 # Target name and source file
-TARGET = leader_election
-SRC = leader_election.c
+TARGET = remote_shell_server
+SRC = remote_shell_server.c
 
 .PHONY: all clean
 

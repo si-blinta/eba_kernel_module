@@ -285,3 +285,27 @@ int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms)
         return 1;               /* timed out */
     return wb.rc;          /* 0 on success, negative on error     */
 }
+
+int eba_register_service(uint64_t buff_id, uint64_t new_id)
+{
+    int fd, ret;
+    struct eba_register_service reg;
+
+    /* Zero out structure, then fill fields */
+    memset(&reg, 0, sizeof(reg));
+    reg.buff_id = buff_id;
+    reg.new_id = new_id;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_REGISTER_SERVICE, &reg);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_REGISTER_SERVICE)");
+        return -1;
+    }
+    return 0 ;
+}

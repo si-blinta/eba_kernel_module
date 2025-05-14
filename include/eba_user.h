@@ -137,4 +137,16 @@ int eba_get_node_infos(struct eba_node_info *out);
 int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms);
 
 int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms);
+
+int eba_register_service(uint64_t buff_id, uint64_t new_id);
+
+
+
+#define EBA_SERVICE_REMOTE_SHELL 0x1
+#define EBA_SERVICE_HTTP 0x2
+#define EBA_SERVICE_FTP 0x3
+#define EBA_SERVICE_TFTP 0x4
+#define EBA_SERVICE_PREFIX_SUM 0x5
+
+
 #endif

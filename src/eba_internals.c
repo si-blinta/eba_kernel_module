@@ -10,7 +10,7 @@ spinlock_t eba_buffer_list_lock;
 /* genpool instance and its backing memory */
 struct gen_pool *eba_pool = NULL;
 void *eba_pool_mem = NULL;
-uint64_t current_id = 1; /* Global variable to keep track of the unique ID */
+uint64_t current_id = EBA_MAX_SERVICES; /* Global variable to keep track of the unique ID */
 /* This ID will be incremented for each allocation */
 struct spinlock eba_id_lock; /* Spinlock to protect the ID increment operation */
 
@@ -522,4 +522,42 @@ void eba_check_expired_buffers(void)
           }
      }
      spin_unlock(&eba_buffer_list_lock);
+}
+
+
+/*========================================================================*/
+/*                      Registering Buffers as Services                   */
+/*========================================================================*/
+
+int register_service(uint64_t buff_id, uint64_t new_id)
+{
+     if(new_id > EBA_MAX_SERVICES || new_id == 0)
+     {
+          EBA_ERR("%s: new_id %llu is out of range\n",__func__, new_id);
+          return -EINVAL; /* new_id out of range */
+     }
+     struct eba_buffer *buf;
+     int found = 0;
+
+     /* Lookup buffer by its id */
+     spin_lock(&eba_buffer_list_lock);
+     list_for_each_entry(buf, &eba_buffer_list, node)
+     {
+          if (buf->id == buff_id)
+          {
+               found = 1;
+               break;
+          }
+     }
+     spin_unlock(&eba_buffer_list_lock);
+
+     if (!found)
+     {
+          EBA_ERR("%s: Buffer with id %llu not found\n",__func__, buff_id);
+          return -EINVAL; /* Buffer not found */
+     }
+     spin_lock(&buf->lock);
+     buf->id = new_id; /* Set the id to the one given by the client */
+     spin_unlock(&buf->lock);
+     return 0;
 }

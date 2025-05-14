@@ -74,6 +74,8 @@ static void execute_cmd(const char *cmd, char out[OUTPUT_SIZE])
 int main(void)
 {
     uint64_t conn_buf_id = eba_alloc(16, 0, 0);
+    eba_register_service(conn_buf_id, EBA_SERVICE_REMOTE_SHELL);
+    conn_buf_id = EBA_SERVICE_REMOTE_SHELL;
     if (conn_buf_id == 0)
     {
         fprintf(stderr, "eba_alloc() failed for connection buffer\n");

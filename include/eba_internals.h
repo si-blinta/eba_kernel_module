@@ -22,7 +22,7 @@
 #include <linux/errno.h>       
 /** Size of the memory pool in bytes. */
 #define MEMORY_POOL_SIZE (1024 * 1024)*1000
-
+#define EBA_MAX_SERVICES 100
 /**
  * struct eba_buffer - Tracking structure for each allocated memory chunk.
  * @lock:    Spinlock to protect this buffer's data.
@@ -156,4 +156,12 @@ int eba_internals_rw_stress_test(void);
  * @note: This function should be called periodically from a timer or workqueue to reclaim expired buffers.
  */
 void eba_check_expired_buffers(void);
+
+/**
+ * register_service - Register a buffer as a service.
+ * @buff_id: Identifier of the buffer to register.
+ * @new_id:  New identifier to assign to the buffer.
+ * Return: 0 on success, or a negative error code if the operation fails.
+ */
+int register_service(uint64_t buff_id, uint64_t new_id);
 #endif
