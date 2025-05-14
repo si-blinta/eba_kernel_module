@@ -67,6 +67,9 @@ int main(void) {
             "  register_queue <buf_id>\n"
             "  enqueue <buf_id> <payload>\n"
             "  dequeue <buf_id> <size>\n"
+            "  remote_register_queue <buf_id> <node_id>\n"
+            "  remote_enqueue <buf_id> <payload> <node_id>\n"
+            "  remote_dequeue <src_buf_id> <dst_buf_id> <dst_offset> <size> <node_id>\n"
             "  exit\n"
             );
         }
@@ -209,6 +212,35 @@ int main(void) {
             eba_dequeue(buf_id, data_out, size);
             printf("Dequeued item: \"%s\"\n", data_out);
         }
+        else if (strcmp(tok[0],"remote_register_queue") == 0 && ntoks == 3) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            uint16_t node_id = (uint16_t)strtoul(tok[2], NULL, 0);
+            printf("Registering queue on node %u as buffer %llu\n",node_id,(unsigned long long)buf_id);
+            eba_remote_register_queue(buf_id, node_id);
+        }
+        else if (strcmp(tok[0], "remote_enqueue") == 0 && ntoks == 4) {
+            uint64_t buf_id = strtoull(tok[1], NULL, 0);
+            char *payload = tok[2];
+            uint16_t node_id = (uint16_t)strtoul(tok[3], NULL, 0);
+            uint64_t size   = strlen(payload);
+            printf("Enqueueing %llu bytes to buffer %llu on node %u. Payload: %s\n",(unsigned long long)size,(unsigned long long)buf_id,node_id,payload);
+            eba_remote_enqueue(buf_id, payload, size, node_id);
+        }
+        else if (strcmp(tok[0], "remote_dequeue") == 0 && ntoks == 6) {
+            uint64_t src_buf_id = strtoull(tok[1], NULL, 0);
+            uint64_t dst_buf_id = strtoull(tok[2], NULL, 0);
+            uint64_t dst_offset = strtoull(tok[3], NULL, 0);
+            uint64_t size       = strtoull(tok[4], NULL, 0);
+            uint16_t node_id    = (uint16_t)strtoul(tok[5], NULL, 0);
+            printf("Dequeuing %llu bytes from buffer %llu on node %u to buffer %llu@%llu\n",
+               (unsigned long long)size,
+               (unsigned long long)src_buf_id,
+               node_id,
+               (unsigned long long)dst_buf_id,
+               (unsigned long long)dst_offset);
+            eba_remote_dequeue(src_buf_id,dst_buf_id,dst_offset,size,node_id);
+        }
+
         else {
             printf("Unknown or malformed command. Type 'help' for list.\n");
         }

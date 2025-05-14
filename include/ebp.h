@@ -171,7 +171,9 @@ enum EBP_OP_IDS {
     EBP_OP_DISCOVER,
     EBP_OP_ALLOC,
     EBP_OP_READ,
-    EBP_OP_WRITE
+    EBP_OP_WRITE,
+    EBP_OP_ENQUEUE,
+    EBP_OP_DEQUEUE
 };
 
 /**
@@ -221,6 +223,44 @@ struct ebp_op_read_args {
     uint64_t src_offset;
     uint64_t size;
 } __attribute__((packed));
+
+
+/**
+ * struct ebp_op_enqueue_args - Arguments for the exposed EBA "enqueue" operation.
+ * @buffer_id: Identifier (virtual address) of the target buffer.
+ * @size:      Number of bytes to enqueue.
+ */
+struct ebp_op_enqueue_args {
+    uint64_t buffer_id;
+    uint64_t size;
+} __attribute__((packed));
+
+
+/**
+ * struct ebp_op_dequeue_args - Arguments for the exposed EBA "dequeue" operation.
+ * @src_buffer_id: Identifier of the source buffer.
+ * @dst_buffer_id: Identifier of the destination buffer.
+ * @dst_offset:    Byte offset within the destination buffer.
+ * @size:      Number of bytes to dequeue.
+ *
+ * This structure specifies the parameters for a remote dequeue operation.
+ */
+struct ebp_op_dequeue_args {
+    uint64_t src_buffer_id;
+    uint64_t dst_buffer_id;
+    uint64_t dst_offset;
+    uint64_t size;
+} __attribute__((packed));
+
+
+/**
+ * struct ebp_op_register_queue_args - Arguments for the exposed EBA "register queue" operation.
+ * @buffer_id: Identifier (virtual address) of the target buffer to register as a queue.
+ */
+struct ebp_op_register_queue_args {
+    uint64_t buffer_id;
+} __attribute__((packed));
+
 
 
 /**
@@ -728,7 +768,15 @@ void dump_iid_waiters(void);
 void dump_buffer_waiters(void);
 
 
+int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
+
+int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out);
+
+int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 
+int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out);
+int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_out);
+int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 #endif

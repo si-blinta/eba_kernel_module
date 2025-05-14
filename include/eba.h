@@ -11,7 +11,7 @@
 #define _EBA_H
 #include <linux/ioctl.h>
 #include <linux/types.h>
-#include <stdbool.h>
+
 /* IOCTL Magic Number */
 
 /** EBA IOCTL magic number used to create unique IOCTL command codes. */
@@ -100,6 +100,12 @@
 
 #define EBA_IOCTL_DEQUEUE _IOWR(EBA_IOC_MAGIC, 15, struct eba_dequeue)
 
+#define EBA_IOCTL_REMOTE_REGISTER_QUEUE _IOWR(EBA_IOC_MAGIC, 16, struct eba_remote_register_queue)
+
+#define EBA_IOCTL_REMOTE_ENQUEUE _IOWR(EBA_IOC_MAGIC, 17, struct eba_remote_enqueue)
+
+#define EBA_IOCTL_REMOTE_DEQUEUE _IOWR(EBA_IOC_MAGIC, 18, struct eba_remote_dequeue)
+
 /* Logging Macros */
 
 #define EBA_PR(fmt, lvl, ...) printk(KERN_##lvl "EBA-" #lvl ": " fmt, ##__VA_ARGS__)
@@ -109,7 +115,7 @@
 #define EBA_ERR(fmt, ...)  EBA_PR(fmt, ERR,    ##__VA_ARGS__)
 /** Log a warning message for the EBA driver. */
 #define EBA_WARN(fmt, ...) EBA_PR(fmt, WARNING,##__VA_ARGS__)
-extern bool eba_debug;
+extern int eba_debug;
 /** Log a debug message for the EBA driver. */
 #define EBA_DBG(fmt, ...)                         \
      do                                           \
@@ -319,5 +325,55 @@ struct eba_dequeue
     __u64  data;
     __u64  size;
 };
+
+/**
+ * struct eba_remote_register_queue - userspace argument for EBA_IOCTL_REMOTE_REGISTER_QUEUE
+ * @buff_id:       Buffer-ID to register as a queue
+ * @node_id:      Target node ID for the queue registration
+ * @iid:          Invocation ID for the queue registration
+ */
+struct eba_remote_register_queue
+{
+    __u64  buff_id;
+    __u16  node_id;
+    __u32  iid;
+};
+
+/**
+ * struct eba_remote_enqueue - userspace argument for EBA_IOCTL_REMOTE_ENQUEUE
+ * @buff_id:       Buffer-ID to enqueue data into
+ * @data:         Pointer to the data to enqueue
+ * @size:         Number of bytes to enqueue
+ * @node_id:      Target node ID for the enqueue operation
+ * @iid:          Invocation ID for the enqueue operation
+ */
+struct eba_remote_enqueue
+{
+    __u64  buff_id;
+    __u64  data;
+    __u64  size;
+    __u16  node_id;
+    __u32  iid;
+};
+
+/**
+ * struct eba_remote_dequeue - userspace argument for EBA_IOCTL_REMOTE_DEQUEUE
+ * @src_buffer_id: Identifier of the source buffer to dequeue from
+ * @dst_buffer_id: Identifier of the destination buffer to store dequeued data
+ * @data:         Pointer to the data to dequeue
+ * @size:         Number of bytes to dequeue
+ * @node_id:      Target node ID for the dequeue operation
+ * @iid:          Invocation ID for the dequeue operation
+ */
+struct eba_remote_dequeue
+{
+    __u64  src_buffer_id;
+    __u64  dst_buffer_id;
+    __u64  dst_offset;
+    __u64  size;
+    __u16  node_id;
+    __u32  iid;
+};
+
 
 #endif /* _EBA_H */

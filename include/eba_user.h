@@ -144,6 +144,15 @@ int eba_register_queue(uint64_t buff_id);
 int eba_enqueue(uint64_t buff_id, void *data, uint64_t size);
 int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
 
+int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id);
+int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id);
+int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id);
+
+
+
+
+
+
 #define EBA_SERVICE_REMOTE_SHELL 0x1
 #define EBA_SERVICE_HTTP 0x2
 #define EBA_SERVICE_FTP 0x3

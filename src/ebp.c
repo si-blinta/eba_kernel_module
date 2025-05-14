@@ -276,6 +276,8 @@ int ebp_ops_init(void)
         ret = -1;
     if (ebp_register_op(EBP_OP_READ, ebp_op_read) < 0)
         ret = -1;
+    if (ebp_register_op(EBP_OP_ENQUEUE, ebp_op_enqueue) < 0)
+        ret = -1;
     return ret;
 }
 
@@ -323,6 +325,52 @@ int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_
         spin_unlock(&buffer_waiter_lock);
     return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
 }
+
+int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
+{
+    EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
+    /* Check that args is not NULL and that its is large enough for our fixed-size header */
+    if (!args || arg_len < sizeof(struct ebp_op_enqueue_args))
+    {
+        EBA_ERR("%s: invalid arg_len=%llu (must be ≥%zu) or NULL args=%p\n",__func__, arg_len, sizeof(struct ebp_op_enqueue_args), args);
+        return -EINVAL;
+    }
+    const struct ebp_op_enqueue_args *en = args;
+    uint64_t header_size = sizeof(struct ebp_op_enqueue_args);
+
+    if (arg_len < header_size + en->size)
+    {
+        EBA_ERR("%s: args too short: arg_len=%llu header=%llu need payload=%llu\n",__func__, arg_len, header_size, en->size);
+        return -EINVAL;
+    }
+
+    const uint8_t *payload = (const uint8_t *)args + header_size;
+
+    EBA_DBG("%s: buff_id=%llx size=%llu\n",__func__, en->buffer_id, en->size);
+    int ret = eba_internals_enqueue(en->buffer_id,(void*)payload, en->size);
+    if (ret < 0 )
+    {
+        EBA_ERR("%s: eba_internals_enqueue failed\n",__func__);
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        return ret;
+        
+    }
+        spin_lock(&buffer_waiter_lock);
+        for (int i = 0; i < MAX_BUFFER_WAITERS; i++) {
+            struct buffer_waiter *bw= &buffer_waiters[i];
+
+            if (bw->buffer_id == en->buffer_id) {
+
+                    bw->done = 1;
+                    bw->rc   = 0;          /* success                 */
+                    if (bw->task)
+                            wake_up_process(bw->task);
+            }
+        }
+        spin_unlock(&buffer_waiter_lock);
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
+}
+
 
 int ebp_op_alloc(uint32_t iid, const void *args, uint64_t arg_len, uint16_t node_id, const unsigned char src_mac[6])
 {
@@ -380,6 +428,69 @@ int ebp_op_read(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id
     }
 
     EBA_DBG("%s: read+forward %llu bytes\n", __func__, rd_args->size);
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
+}
+
+int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
+{
+    EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
+    /* Verify that a valid argument is provided and that it's at least as large as our header. */
+    if (!args || arg_len < sizeof(struct ebp_op_dequeue_args))
+    {
+        EBA_ERR("%s: invalid arg_len=%llu (must be ≥%zu) or NULL args=%p\n",__func__, arg_len, sizeof(struct ebp_op_dequeue_args), args);
+        return -EINVAL;
+    }
+    const struct ebp_op_dequeue_args *da = args;
+
+    EBA_DBG("%s: dst_buf=%llu src_buf=%llu dst_offset=%llu size=%llu\n",__func__,da->dst_buffer_id,da->src_buffer_id,da->dst_offset,da->size);
+    
+
+    void *dequeued_data = kmalloc(da->size, GFP_ATOMIC);
+    int ret = eba_internals_dequeue(da->src_buffer_id,dequeued_data, da->size);
+
+    if (ret < 0)
+    {
+        EBA_ERR("%s: eba_internals_dequeue failed rc=%d\n",__func__, ret);;
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        kfree(dequeued_data);
+        return ret;
+    }
+    ret = ebp_remote_write(da->dst_buffer_id, da->dst_offset, da->size, (const char *)dequeued_data, node_id,NULL);
+
+    if (ret < 0)
+    {
+        EBA_ERR("%s: ebp_remote_write failed rc=%d\n",__func__, ret);
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        kfree(dequeued_data);
+        return ret;
+    }
+
+    EBA_DBG("%s: read+forward %llu bytes\n", __func__, da->size);
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
+}
+
+int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
+{
+    EBA_DBG("%s: args=%p arg_len=%llu node_id=%u\n",__func__, args, arg_len, node_id);
+    /* Verify that a valid argument is provided and that it's at least as large as our header. */
+    if (!args || arg_len < sizeof(struct ebp_op_register_queue_args))
+    {
+        EBA_ERR("%s: invalid arg_len=%llu (must be ≥%zu) or NULL args=%p\n",__func__, arg_len, sizeof(struct ebp_op_register_queue_args), args);
+        return -EINVAL;
+    }
+    const struct ebp_op_register_queue_args *ra = args;
+
+    EBA_DBG("%s: src_buf=%llu\n",__func__,ra->buffer_id);
+
+    int ret = register_queue(ra->buffer_id);
+
+    if (ret < 0)
+    {
+        EBA_ERR("%s: eba_internals_register_queue failed rc=%d\n",__func__, ret);;
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        return ret;
+    }
+    EBA_DBG("%s: eba_internals_register_queue rc=%d\n",__func__, ret);
     return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
 }
 
@@ -500,6 +611,117 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     EBA_DBG("%s: sent remote_read src=%llu dst=%llu size=%llu\n",__func__, src_buffer_id, dst_buffer_id, size);
     return 0;
 }
+
+int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out)
+{
+    EBA_DBG("%s: dst_buffer_id=%llu src_buffer_id=%llu dst_offset=%llu size=%llu node_id=%u\n",__func__, 
+        dst_buffer_id, src_buffer_id, dst_offset, size, node_id);
+        
+    struct ebp_op_dequeue_args dequeue_args = {
+        .dst_buffer_id = dst_buffer_id,
+        .src_buffer_id = src_buffer_id,
+        .dst_offset = dst_offset,
+        .size = size};
+
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
+    if(!dest_mac)
+    {
+        EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
+        return -EINVAL;
+    }
+    
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_DEQUEUE, (char *)&dequeue_args, sizeof(dequeue_args), NULL, 0, dest_mac, "enp0s8");
+    if (ret < 0)
+    {
+        EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
+        return ret;
+    }
+    EBA_DBG("%s: sent remote_dequeue src=%llu dst=%llu size=%llu\n",__func__, src_buffer_id, dst_buffer_id, size);
+    return 0;
+}
+
+int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out)
+{
+    EBA_DBG("%s: buff_id=%llu size=%llu node_id=%u\n",__func__, 
+            buff_id, size, node_id);
+    
+    struct ebp_op_enqueue_args enqueue_args = {
+        .buffer_id = buff_id,
+        .size = size};
+
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
+    if(!dest_mac)
+    {
+        EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
+        return -EINVAL;
+    }
+    
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&enqueue_args, sizeof(enqueue_args), payload, enqueue_args.size,dest_mac , "enp0s8");
+    if (ret < 0)
+    {
+        EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
+        return ret;
+    }
+    EBA_DBG("%s: sent remote_enqueue buff=%llu size=%llu\n",__func__, buff_id, size);
+    return 0;
+}
+
+int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_out)
+{
+    EBA_DBG("%s: buff_id=%llu node_id=%u\n",__func__, buff_id,node_id);
+
+    struct ebp_op_register_queue_args reg_args = {
+        .buffer_id = buff_id,};
+    const unsigned char* dest_mac = NULL;
+    if(node_id == 0)
+    {
+        dest_mac = broadcast_mac;
+    }
+    else
+    {
+        dest_mac = node_id_to_mac(node_id);
+    }
+    if(!dest_mac)
+    {
+        EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
+        return -EINVAL;
+    }
+    
+    uint32_t iid = ebp_next_iid();
+    if (iid_out)
+                *iid_out = iid;
+    int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , "enp0s8");
+    if (ret < 0)
+    {
+        EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
+        return ret;
+    }
+    EBA_DBG("%s: sent remote_register_quueue buff=%llu\n",__func__, buff_id);
+    return 0;
+}
+
 int ebp_register_node(uint16_t mtu, const char mac[6], uint64_t node_specs)
 {
     EBA_DBG("%s: mtu=%u mac=%p node_specs=%llu\n",__func__, mtu, mac, node_specs);

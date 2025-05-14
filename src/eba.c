@@ -18,9 +18,9 @@
 #include "eba_utils.h"     /* buff <-> file helpers */
 
 /* Boolean to print DBG logs */
-bool eba_debug;
+int eba_debug;
 /* Register it as a module param */
-module_param(eba_debug, bool, 0644);
+module_param(eba_debug, int, 0644);
 MODULE_PARM_DESC(eba_debug, "Enable EBA_DBG messages");
 /* Global variables for character device registration */
 static dev_t eba_devno;
@@ -48,6 +48,11 @@ static long handle_eba_ioctl_register_service(unsigned long arg);
 static long handle_eba_ioctl_register_queue(unsigned long arg);
 static long handle_eba_ioctl_enqueue(unsigned long arg);
 static long handle_eba_ioctl_dequeue(unsigned long arg);
+static long handle_eba_ioctl_remote_register_queue(unsigned long arg);
+static long handle_eba_ioctl_remote_enqueue(unsigned long arg);
+static long handle_eba_ioctl_remote_dequeue(unsigned long arg);
+
+
 /*
  * IOCTL handler --------------------------------------------------------
  */
@@ -106,6 +111,12 @@ static long eba_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
           return handle_eba_ioctl_enqueue(arg);
      case EBA_IOCTL_DEQUEUE:
           return handle_eba_ioctl_dequeue(arg);
+     case EBA_IOCTL_REMOTE_REGISTER_QUEUE:
+          return handle_eba_ioctl_remote_register_queue(arg);
+     case EBA_IOCTL_REMOTE_ENQUEUE:
+          return handle_eba_ioctl_remote_enqueue(arg);
+     case EBA_IOCTL_REMOTE_DEQUEUE:
+          return handle_eba_ioctl_remote_dequeue(arg);
      default:
           return -ENOTTY;
      }
@@ -368,6 +379,39 @@ static long handle_eba_ioctl_dequeue(unsigned long arg)
      if (copy_to_user((void __user *)arg, &deq, sizeof(deq)))
           return -EFAULT;
 
+     return ret;
+}
+static long handle_eba_ioctl_remote_register_queue(unsigned long arg)
+{
+     struct eba_remote_register_queue rq;
+     if (copy_from_user(&rq, (void __user *)arg, sizeof(rq)))
+          return -EFAULT;
+
+     int ret = ebp_remote_register_queue(rq.buff_id, rq.node_id, &rq.iid);
+     if (copy_to_user((void __user *)arg, &rq, sizeof(rq)))
+          return -EFAULT;
+
+     return ret;
+}
+static long handle_eba_ioctl_remote_enqueue(unsigned long arg)
+{
+     struct eba_remote_enqueue re;
+     if (copy_from_user(&re, (void __user *)arg, sizeof(re)))
+          return -EFAULT;
+     int ret = ebp_remote_enqueue(re.buff_id,re.size, (char *)re.data, re.node_id, &re.iid);
+     if (copy_to_user((void __user *)arg, &re, sizeof(re)))
+          return -EFAULT;
+
+     return ret;
+}
+static long handle_eba_ioctl_remote_dequeue(unsigned long arg)
+{
+     struct eba_remote_dequeue rd;
+     if (copy_from_user(&rd, (void __user *)arg, sizeof(rd)))
+          return -EFAULT;
+     int ret = ebp_remote_dequeue(rd.dst_buffer_id,rd.src_buffer_id,rd.dst_offset,rd.size,rd.node_id,&rd.iid);
+     if (copy_to_user((void __user *)arg, &rd, sizeof(rd)))
+          return -EFAULT;
      return ret;
 }
 

@@ -381,3 +381,78 @@ int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size)
     }
     return 0 ;
 }
+
+int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id)
+{
+    int fd, ret;
+    struct eba_remote_register_queue rq;
+
+    /* Zero out structure, then fill fields */
+    memset(&rq, 0, sizeof(rq));
+    rq.buff_id = buff_id;
+    rq.node_id = node_id;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_REGISTER_QUEUE, &rq);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_REMOTE_REGISTER_QUEUE)");
+        return -1;
+    }
+    return rq.iid ;
+}
+
+int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id)
+{
+    int fd, ret;
+    struct eba_remote_enqueue re;
+
+    /* Zero out structure, then fill fields */
+    memset(&re, 0, sizeof(re));
+    re.buff_id = buff_id;
+    re.data = (uint64_t)data;
+    re.size = size;
+    re.node_id = node_id;
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_ENQUEUE, &re);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_REMOTE_ENQUEUE)");
+        return -1;
+    }
+    return re.iid;
+}
+int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id)
+{
+    int fd, ret;
+    struct eba_remote_dequeue rd;
+
+    /* Zero out structure, then fill fields */
+    memset(&rd, 0, sizeof(rd));
+    rd.src_buffer_id = src_buff_id;
+    rd.dst_buffer_id = dst_buff_id;
+    rd.dst_offset = dst_offset;
+    rd.size = size;
+    rd.node_id = node_id;
+
+    fd = open_eba_device();
+    if (fd < 0)
+        return -1;
+    ret = ioctl(fd, EBA_IOCTL_REMOTE_DEQUEUE, &rd);
+    close(fd);
+
+    if (ret < 0)
+    {
+        perror("ioctl(EBA_IOCTL_REMOTE_DEQUEUE)");
+        return -1;
+    }
+    return rd.iid;
+}
