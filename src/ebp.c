@@ -276,7 +276,11 @@ int ebp_ops_init(void)
         ret = -1;
     if (ebp_register_op(EBP_OP_READ, ebp_op_read) < 0)
         ret = -1;
+    if(ebp_register_op(EBP_OP_REGISTER_QUEUE,ebp_op_register_queue) <0 )
+        ret = -1;
     if (ebp_register_op(EBP_OP_ENQUEUE, ebp_op_enqueue) < 0)
+        ret = -1;
+    if (ebp_register_op(EBP_OP_DEQUEUE, ebp_op_dequeue) < 0)
         ret = -1;
     return ret;
 }
