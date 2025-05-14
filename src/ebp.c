@@ -933,7 +933,11 @@ int ebp_remote_write_fixed_mtu_mac(const unsigned char dest_mac[6],uint16_t  for
 {
     EBA_DBG("%s: mac=%pM forced_mtu=%u buff=%llu total=%llu\n",__func__, dest_mac, forced_mtu, buff_id, total_size);
     const uint16_t overhead = sizeof(struct ebp_invoke_req) + MTU_OVERHEAD;
-
+    
+    if (!dest_mac) {
+        EBA_ERR("%s: NULL dest_mac\n", __func__);
+        return -EINVAL;
+    }
     if (!payload)
     {
         EBA_ERR("%s: NULL payload\n", __func__);
@@ -1010,6 +1014,10 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
                           struct ethhdr *eth, struct ebp_header *hdr)
 {
     EBA_DBG("%s: skb=%p dev=%s\n", __func__, skb, dev->name);
+     if (!skb || !dev || !eth || !hdr) {
+        EBA_ERR("%s: NULL parameter(s)\n", __func__);
+        return -EINVAL;
+    }
     struct ebp_invoke_ack *ack = (struct ebp_invoke_ack *)hdr;
     uint64_t data = be64_to_cpu(ack->data);
     EBA_DBG("%s: received ACK status=0x%02x from %pM\n",__func__, ack->status, eth->h_source);
@@ -1031,14 +1039,16 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
     }
     spin_unlock(&waiter_lock);
 
+    struct eba_buffer *buf = get_buffer_by_id(local_specs) ;
+    char* payload = (char*)buf->address;
     /* DISCOVER completed → ship our specs buffer to the peer          */
     if (ack->status == INVOKE_COMPLETED && data) {
         int node_id = ebp_get_node_id_from_mac(eth->h_source);
 
         if (node_id < 0)   /* peer still unknown ⇒ use direct-MAC path */
-            ebp_remote_write_fixed_mtu_mac(eth->h_source, MINIMAL_MTU,data,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
+            ebp_remote_write_fixed_mtu_mac(eth->h_source, MINIMAL_MTU,data,EBP_NODE_SPECS_MAX_SIZE,payload);
         else               /* peer already registered                  */
-            ebp_remote_write_mtu(node_id, data,EBP_NODE_SPECS_MAX_SIZE,(char *)local_specs);
+            ebp_remote_write_mtu(node_id, data,EBP_NODE_SPECS_MAX_SIZE,payload);
     }
 
     kfree_skb(skb);

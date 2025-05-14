@@ -771,3 +771,28 @@ cleanup:
           EBA_DBG("FAIL: Queue stress test encountered errors, ret = %d\n", ret);
      return ret;
 }
+
+struct eba_buffer *get_buffer_by_id(uint64_t id)
+{
+     struct eba_buffer *buf;
+     int found = 0;
+
+     /* Lookup buffer by its id */
+     spin_lock(&eba_buffer_list_lock);
+     list_for_each_entry(buf, &eba_buffer_list, node)
+     {
+          if (buf->id == id)
+          {
+               found = 1;
+               break;
+          }
+     }
+     spin_unlock(&eba_buffer_list_lock);
+
+     if (!found)
+     {
+          EBA_ERR("%s: Buffer with id %llu not found\n", __func__, id);
+          return NULL; /* Buffer not found */
+     }
+     return buf;
+}

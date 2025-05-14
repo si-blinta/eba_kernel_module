@@ -232,6 +232,7 @@ int send_invoke_req_packet(uint32_t iid, uint32_t opid,
                            const unsigned char dest_mac[6],
                            const char *ifname)
 {
+    EBA_DBG("%s: iid=%u opid=%u args_len=%llu payload_len=%llu\n",__func__, iid, opid, args_len, payload_len);
     uint64_t pkt_len = 0;
     char *packet = build_invoke_req_packet(iid, opid,
                                            args, args_len,

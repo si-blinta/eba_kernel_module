@@ -220,4 +220,10 @@ int eba_internals_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
  */
 int eba_internals_queue_stress_test(void);
 
+/**
+ * get_buffer_by_id - Retrieve a buffer by its ID.
+ * @id: Identifier of the buffer to retrieve.
+ */
+struct eba_buffer *get_buffer_by_id(uint64_t id);
+
 #endif
