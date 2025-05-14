@@ -712,7 +712,7 @@ int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_o
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_REGISTER_QUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , "enp0s8");
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
