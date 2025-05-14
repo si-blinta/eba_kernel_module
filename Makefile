@@ -50,7 +50,6 @@ lib:
 debug-on:
 	@echo ">>> Enabling EBA_DBG logs"
 	@sudo sh -c 'echo 1 > /sys/module/eba/parameters/eba_debug'
-
 debug-off:
 	@echo ">>> Disabling EBA_DBG logs"
 	@sudo sh -c 'echo 0 > /sys/module/eba/parameters/eba_debug'

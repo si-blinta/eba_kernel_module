@@ -103,8 +103,15 @@
 #define EBA_ERR(fmt, ...)  EBA_PR(fmt, ERR,    ##__VA_ARGS__)
 /** Log a warning message for the EBA driver. */
 #define EBA_WARN(fmt, ...) EBA_PR(fmt, WARNING,##__VA_ARGS__)
+extern bool eba_debug;
 /** Log a debug message for the EBA driver. */
-#define EBA_DBG(fmt, ...)  EBA_PR(fmt, DEBUG,  ##__VA_ARGS__)
+#define EBA_DBG(fmt, ...)                         \
+     do                                           \
+     {                                            \
+          if (eba_debug)                          \
+               EBA_PR(fmt, DEBUG, ##__VA_ARGS__); \
+     } while (0)
+
 
 /* Timer Settings */
 /** Timer period for the buffer clean-up callback in milliseconds (60000 ms = 1 minute). */
