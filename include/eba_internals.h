@@ -31,6 +31,7 @@
  * @size:    Requested allocation size in bytes.
  * @expires: Time when the allocation expires.
  * @node:    List node to chain all allocations.
+ * @id:      Unique identifier for the buffer.
  *
  * This structure tracks each memory allocation made from the EBA memory pool.
  */
@@ -40,7 +41,8 @@ struct eba_buffer {
   uint64_t address;         
   uint64_t size;             
   ktime_t expires;           
-  struct list_head node;     
+  struct list_head node; 
+  uint64_t id;    
   //Add permissions 
 };
 
@@ -65,9 +67,9 @@ int eba_internals_mempool_init(void);
  * tracking structure to record allocation details (pointer, size, lifetime), and
  * adds this structure to a global list for tracking.
  *
- * Return: Pointer to the allocated memory on success, or NULL if the allocation fails.
+ * Return: Allocated buffer ID or 0 on fail.
  */
-void *eba_internals_malloc(uint64_t size, uint64_t life_time);
+uint64_t eba_internals_malloc(uint64_t size, uint64_t life_time);
 
 /**
  * eba_internals_free - Free a previously allocated block of memory from the EBA memory pool.
@@ -79,7 +81,7 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time);
  *
  * Return: 0 if the memory was successfully freed, or -1 if the pointer is invalid or not found.
  */
-int eba_internals_free(void *ptr);
+int eba_internals_free(uint64_t id);
 
 /**
  * eba_internals_mempool_free - Free the entire memory pool for the EBA module.
@@ -104,7 +106,7 @@ int eba_internals_mem_stress_test(void);
 /**
  * eba_internals_write - Write data into an allocated buffer.
  * @data:    Pointer to the data to write.
- * @buff_id: Identifier of the buffer (virtual address returned by eba_internals_malloc).
+ * @buff_id: Identifier of the buffer (returned by eba_internals_malloc).
  * @off:     Offset (in bytes) within the buffer at which writing should begin.
  * @size:    Number of bytes to write.
  *
@@ -119,7 +121,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
 /**
  * eba_internals_read - Read data from an allocated buffer.
  * @data_out: Pointer to the destination where read data should be stored.
- * @buff_id:  Identifier of the buffer (virtual address returned by eba_internals_malloc).
+ * @buff_id:  Identifier of the buffer (returned by eba_internals_malloc).
  * @off:      Offset (in bytes) within the buffer from which reading should start.
  * @size:     Number of bytes to read.
  *

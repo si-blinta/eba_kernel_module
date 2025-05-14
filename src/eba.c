@@ -49,6 +49,19 @@ extern spinlock_t node_info_lock;
 
 extern struct node_info node_infos[MAX_NODE_COUNT];
 
+// Function prototypes for IOCTL handlers
+static long handle_eba_ioctl_alloc(unsigned long arg);
+static long handle_eba_ioctl_write(unsigned long arg);
+static long handle_eba_ioctl_read(unsigned long arg);
+static long handle_eba_ioctl_remote_alloc(unsigned long arg);
+static long handle_eba_ioctl_remote_write(unsigned long arg);
+static long handle_eba_ioctl_remote_read(unsigned long arg);
+static long handle_eba_ioctl_discover(void);
+static long handle_eba_ioctl_export_node_specs(void);
+static long handle_eba_ioctl_get_node_infos(unsigned long arg);
+static long handle_eba_ioctl_wait_iid(unsigned long arg);
+static long handle_eba_ioctl_wait_buffer(unsigned long arg);
+
 /*
  * IOCTL handler --------------------------------------------------------
  */
@@ -67,237 +80,233 @@ extern struct node_info node_infos[MAX_NODE_COUNT];
  *   EBA_IOCTL_REMOTE_READ       – read  data from a remote node
  *   EBA_IOCTL_DISCOVER          – broadcast discovery packets
  *   EBA_IOCTL_EXPORT_NODE_SPECS – publish node capabilities
+ *   EBA_IOCTL_GET_NODE_INFOS    – get node information
+ *   EBA_IOCTL_WAIT_IID          – wait for an invocation to complete
+ *   EBA_IOCTL_WAIT_BUFFER       – wait for a buffer to be freed
  *
  * Return: 0 on success or a negative errno on failure.
  */
 static long eba_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-     int ret = 0;
-     void *kbuf; /* Temporary kernel buffer for data transfers */
+    switch (cmd) {
+    case EBA_IOCTL_ALLOC:
+        return handle_eba_ioctl_alloc(arg);
+    case EBA_IOCTL_WRITE:
+        return handle_eba_ioctl_write(arg);
+    case EBA_IOCTL_READ:
+        return handle_eba_ioctl_read(arg);
+    case EBA_IOCTL_REMOTE_ALLOC:
+        return handle_eba_ioctl_remote_alloc(arg);
+    case EBA_IOCTL_REMOTE_WRITE:
+        return handle_eba_ioctl_remote_write(arg);
+    case EBA_IOCTL_REMOTE_READ:
+        return handle_eba_ioctl_remote_read(arg);
+    case EBA_IOCTL_DISCOVER:
+        return handle_eba_ioctl_discover();
+    case EBA_IOCTL_EXPORT_NODE_SPECS:
+        return handle_eba_ioctl_export_node_specs();
+    case EBA_IOCTL_GET_NODE_INFOS:
+        return handle_eba_ioctl_get_node_infos(arg);
+    case EBA_IOCTL_WAIT_IID:
+        return handle_eba_ioctl_wait_iid(arg);
+    case EBA_IOCTL_WAIT_BUFFER:
+        return handle_eba_ioctl_wait_buffer(arg);
+    default:
+        return -ENOTTY;
+    }
+}
 
-     switch (cmd)
-     {
-     case EBA_IOCTL_ALLOC:
+// IOCTL handler for EBA_IOCTL_ALLOC
+static long handle_eba_ioctl_alloc(unsigned long arg) {
+    struct eba_alloc_data alloc_data;
+    if (copy_from_user(&alloc_data, (void __user *)arg, sizeof(alloc_data)))
+        return -EFAULT;
 
-          struct eba_alloc_data alloc_data;
-          /* Copy the allocation parameters from user space */
-          if (copy_from_user(&alloc_data, (void __user *)arg, sizeof(alloc_data)))
-               return -EFAULT;
+    alloc_data.buff_id = eba_internals_malloc(alloc_data.size, alloc_data.life_time);
+    if (!alloc_data.buff_id)
+        return -ENOMEM;
 
-          /* Perform allocation and record buff_id */
-          alloc_data.buff_id = (uint64_t)eba_internals_malloc(alloc_data.size, alloc_data.life_time);
-          if (!alloc_data.buff_id)
-               ret = -ENOMEM;
+    if (copy_to_user((void __user *)arg, &alloc_data, sizeof(alloc_data)))
+        return -EFAULT;
 
-          /* Return buff_id back to user */
-          if (copy_to_user((void __user *)arg, &alloc_data, sizeof(alloc_data)))
-               ret = -EFAULT;
-          break;
+    return 0;
+}
 
-     case EBA_IOCTL_WRITE:
+// IOCTL handler for EBA_IOCTL_WRITE
+static long handle_eba_ioctl_write(unsigned long arg) {
+    struct eba_write wr;
+    if (copy_from_user(&wr, (void __user *)arg, sizeof(wr)))
+        return -EFAULT;
 
-          struct eba_write wr;
-          /* Copy the write parameters from user space */
-          if (copy_from_user(&wr, (void __user *)arg, sizeof(wr)))
-               return -EFAULT;
-          ret = eba_internals_write(wr.payload, wr.buff_id, wr.offset, wr.size);
-          break;
+    return eba_internals_write(wr.payload, wr.buff_id, wr.offset, wr.size);
+}
 
-     case EBA_IOCTL_READ:
+// IOCTL handler for EBA_IOCTL_READ
+static long handle_eba_ioctl_read(unsigned long arg) {
+    struct eba_read r;
+    void *kbuf;
 
-          struct eba_read r;
-          /* Copy the read parameters from user space */
-          if (copy_from_user(&r, (void __user *)arg, sizeof(r)))
-               return -EFAULT;
+    if (copy_from_user(&r, (void __user *)arg, sizeof(r)))
+        return -EFAULT;
 
-          /* Allocate temp kernel buffer to stage data */
-          kbuf = kmalloc(r.size, GFP_KERNEL);
-          if (!kbuf)
-               return -ENOMEM;
+    kbuf = kmalloc(r.size, GFP_KERNEL);
+    if (!kbuf)
+        return -ENOMEM;
 
-          /* Read into kbuf, then copy to user */
-          ret = eba_internals_read(kbuf, r.buffer_id, r.offset, r.size);
-          if (ret)
-          {
-               kfree(kbuf);
-               return ret;
-          }
-          if (copy_to_user((void __user *)(r.user_addr), kbuf, r.size))
-               ret = -EFAULT;
-          kfree(kbuf);
-          break;
+    int ret = eba_internals_read(kbuf, r.buffer_id, r.offset, r.size);
+    if (ret) {
+        kfree(kbuf);
+        return ret;
+    }
 
-     case EBA_IOCTL_REMOTE_ALLOC:
+    if (copy_to_user((void __user *)(r.user_addr), kbuf, r.size))
+        ret = -EFAULT;
 
-          struct eba_remote_alloc ra;
-          /* Copy the remote alloc parameters from user space */
-          if (copy_from_user(&ra, (void __user *)arg, sizeof(ra)))
-               return -EFAULT;
-          ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id, &ra.iid);
-          if (copy_to_user((void __user *)arg, &ra, sizeof(ra)))
-               ret = -EFAULT;
-          break;
+    kfree(kbuf);
+    return ret;
+}
 
-     case EBA_IOCTL_REMOTE_WRITE:
+// IOCTL handler for EBA_IOCTL_REMOTE_ALLOC
+static long handle_eba_ioctl_remote_alloc(unsigned long arg) {
+    struct eba_remote_alloc ra;
+    if (copy_from_user(&ra, (void __user *)arg, sizeof(ra)))
+        return -EFAULT;
 
-          struct eba_remote_write rwr;
-          /* Copy the remote write parameters from user space */
-          if (copy_from_user(&rwr, (void __user *)arg, sizeof(rwr)))
-               return -EFAULT;
-          ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id, &rwr.iid);
-          /* propagate IID back */
-          if (copy_to_user((void __user *)arg, &rwr, sizeof(rwr)))
-               ret = -EFAULT;
-          break;
+    int ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id, &ra.iid);
+    if (copy_to_user((void __user *)arg, &ra, sizeof(ra)))
+        return -EFAULT;
 
-     case EBA_IOCTL_REMOTE_READ:
+    return ret;
+}
 
-          struct eba_remote_read rr;
-          /* Copy the remote read parameters from user space */
-          if (copy_from_user(&rr, (void __user *)arg, sizeof(rr)))
-               return -EFAULT;
-          ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id, &rr.iid);
-          if (copy_to_user((void __user *)arg, &rr, sizeof(rr)))
-               ret = -EFAULT;
-          break;
+// IOCTL handler for EBA_IOCTL_REMOTE_WRITE
+static long handle_eba_ioctl_remote_write(unsigned long arg) {
+    struct eba_remote_write rwr;
+    if (copy_from_user(&rwr, (void __user *)arg, sizeof(rwr)))
+        return -EFAULT;
 
-     case EBA_IOCTL_DISCOVER:
+    int ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id, &rwr.iid);
+    if (copy_to_user((void __user *)arg, &rwr, sizeof(rwr)))
+        return -EFAULT;
 
-          ret = ebp_discover();
-          break;
+    return ret;
+}
 
-     case EBA_IOCTL_EXPORT_NODE_SPECS:
+// IOCTL handler for EBA_IOCTL_REMOTE_READ
+static long handle_eba_ioctl_remote_read(unsigned long arg) {
+    struct eba_remote_read rr;
+    if (copy_from_user(&rr, (void __user *)arg, sizeof(rr)))
+        return -EFAULT;
 
-          ret = eba_export_node_specs();
-          break;
+    int ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id, &rr.iid);
+    if (copy_to_user((void __user *)arg, &rr, sizeof(rr)))
+        return -EFAULT;
 
-     case EBA_IOCTL_GET_NODE_INFOS:
+    return ret;
+}
 
-          struct eba_node_info kbuf[MAX_NODE_COUNT];
-          memset(kbuf, 0, sizeof(kbuf));
-          spin_lock(&node_info_lock);
-          for (u64 src = 0, dst = 0; src < MAX_NODE_COUNT; src++)
-          {
-               if (node_infos[src].id == UNUSED_NODE_ID)
-                    continue; /* free slot    */
+// IOCTL handler for EBA_IOCTL_DISCOVER
+static long handle_eba_ioctl_discover(void) {
+    return ebp_discover();
+}
 
-               kbuf[dst].id = node_infos[src].id;
-               kbuf[dst].mtu = node_infos[src].mtu;
-               kbuf[dst].node_specs = node_infos[src].node_specs;
-               memcpy(kbuf[dst].mac, node_infos[src].mac, ETH_ALEN);
-               dst++;
-          }
-          spin_unlock(&node_info_lock);
+// IOCTL handler for EBA_IOCTL_EXPORT_NODE_SPECS
+static long handle_eba_ioctl_export_node_specs(void) {
+    return eba_export_node_specs();
+}
 
-          /* copy the full array */
-          if (copy_to_user((void __user *)arg, kbuf, sizeof(kbuf)))
-          {
-               ret = - EFAULT;
-               break;
-          }
-          ret = 0;
-          break;
+// IOCTL handler for EBA_IOCTL_GET_NODE_INFOS
+static long handle_eba_ioctl_get_node_infos(unsigned long arg) {
+    struct eba_node_info kbuf[MAX_NODE_COUNT];
+    memset(kbuf, 0, sizeof(kbuf));
 
-     case EBA_IOCTL_WAIT_IID:
+    spin_lock(&node_info_lock);
+    for (u64 src = 0, dst = 0; src < MAX_NODE_COUNT; src++) {
+        if (node_infos[src].id == UNUSED_NODE_ID)
+            continue;
 
-          struct eba_wait_iid wi;
+        kbuf[dst].id = node_infos[src].id;
+        kbuf[dst].mtu = node_infos[src].mtu;
+        kbuf[dst].node_specs = node_infos[src].node_specs;
+        memcpy(kbuf[dst].mac, node_infos[src].mac, ETH_ALEN);
+        dst++;
+    }
+    spin_unlock(&node_info_lock);
 
-          if (copy_from_user(&wi, (void __user *)arg, sizeof(wi))){
-               ret= -EFAULT;
-               break;
-          }
+    if (copy_to_user((void __user *)arg, kbuf, sizeof(kbuf)))
+        return -EFAULT;
 
-          /* ---------- register the waiter ------------------------------ */
-          struct iid_waiter *w;
-          spin_lock(&waiter_lock);
+    return 0;
+}
 
-          w = iid_waiter_alloc(wi.iid, wi.wanted_status, current);
-          if (!w)
-          {
-               spin_unlock(&waiter_lock);
-               wi.rc = -ENOSPC;
-               goto copy_to_usr;
-          }
+// IOCTL handler for EBA_IOCTL_WAIT_IID
+static long handle_eba_ioctl_wait_iid(unsigned long arg) {
+    struct eba_wait_iid wi;
+    if (copy_from_user(&wi, (void __user *)arg, sizeof(wi)))
+        return -EFAULT;
 
-          spin_unlock(&waiter_lock);
+    struct iid_waiter *w;
+    spin_lock(&waiter_lock);
+    w = iid_waiter_alloc(wi.iid, wi.wanted_status, current);
+    if (!w) {
+        spin_unlock(&waiter_lock);
+        wi.rc = -ENOSPC;
+        goto copy_to_usr;
+    }
+    spin_unlock(&waiter_lock);
 
-          /* ---------- sleep ------------------------------------------- */
-          set_current_state(TASK_INTERRUPTIBLE);
+    set_current_state(TASK_INTERRUPTIBLE);
+    if (wi.timeout_ms)
+        schedule_timeout(msecs_to_jiffies(wi.timeout_ms));
+    else
+        schedule();
 
-          if (wi.timeout_ms)
-               schedule_timeout(msecs_to_jiffies(wi.timeout_ms));
-          else
-               schedule(); /* unlimited                    */
+    wi.rc = w->rc;
+    wi.timed_out = (w->done == 0);
+    spin_lock(&waiter_lock);
+    w->iid = 0;
+    spin_unlock(&waiter_lock);
 
-          /* ---------- running again ----------------------------------- */
-          wi.rc = w->rc;
-          wi.timed_out = (w->done == 0); /* timed out = 1 if we never saw the ACK */
-          /* free the slot                                                */
-          spin_lock(&waiter_lock);
-          w->iid = 0;
-          spin_unlock(&waiter_lock);
+copy_to_usr:
+    if (copy_to_user((void __user *)arg, &wi, sizeof(wi)))
+        return -EFAULT;
 
-     copy_to_usr:
-          if (copy_to_user((void __user *)arg, &wi, sizeof(wi)))
-          {
-               ret =  -EFAULT;
-               break;
-          }
-          ret = 0;
-          break;
-     
-     case EBA_IOCTL_WAIT_BUFFER:
+    return 0;
+}
 
-          struct eba_wait_buffer wb;
-          if (copy_from_user(&wb, (void __user *)arg, sizeof(wb)))
-          {
-               ret = -EFAULT;
-               break;
-          }
-           /* ---------- register the waiter ------------------------------ */
-          struct buffer_waiter *bw;
-          spin_lock(&buffer_waiter_lock);
+// IOCTL handler for EBA_IOCTL_WAIT_BUFFER
+static long handle_eba_ioctl_wait_buffer(unsigned long arg) {
+    struct eba_wait_buffer wb;
+    if (copy_from_user(&wb, (void __user *)arg, sizeof(wb)))
+        return -EFAULT;
 
-          bw = buffer_waiter_alloc(wb.buff_id,current);
-          if (bw == NULL)
-          {
-               spin_unlock(&buffer_waiter_lock);
-               wb.rc = -ENOSPC;
-               goto copy_to_usr_buf;
-          }
-          spin_unlock(&buffer_waiter_lock);
-          /* ---------- sleep ------------------------------------------- */
-           set_current_state(TASK_INTERRUPTIBLE);
+    struct buffer_waiter *bw;
+    spin_lock(&buffer_waiter_lock);
+    bw = buffer_waiter_alloc(wb.buff_id, current);
+    if (!bw) {
+        spin_unlock(&buffer_waiter_lock);
+        wb.rc = -ENOSPC;
+        goto copy_to_usr_buf;
+    }
+    spin_unlock(&buffer_waiter_lock);
 
-          if (wb.timeout_ms)
-               schedule_timeout(msecs_to_jiffies(wb.timeout_ms));
-          else
-               schedule(); /* unlimited                    */
+    set_current_state(TASK_INTERRUPTIBLE);
+    if (wb.timeout_ms)
+        schedule_timeout(msecs_to_jiffies(wb.timeout_ms));
+    else
+        schedule();
 
-          /* ---------- running again ----------------------------------- */
-          wb.rc = bw->rc;
-          wb.timed_out= (bw->done == 0); /* timed out = 1 if the buffer is never written onto it  */
-          /* free the slot                                                */
-          spin_lock(&buffer_waiter_lock);
-          bw->buffer_id = 0;
-          spin_unlock(&buffer_waiter_lock);
+    wb.rc = bw->rc;
+    wb.timed_out = (bw->done == 0);
+    spin_lock(&buffer_waiter_lock);
+    bw->buffer_id = 0;
+    spin_unlock(&buffer_waiter_lock);
 
-     copy_to_usr_buf:
-          if (copy_to_user((void __user *)arg, &wb, sizeof(wb)))
-          {
-               ret =  -EFAULT;
-               break;
-          }
-          ret = 0;
-          break;
+copy_to_usr_buf:
+    if (copy_to_user((void __user *)arg, &wb, sizeof(wb)))
+        return -EFAULT;
 
-
-     default:
-
-          ret = -ENOTTY;
-          break;
-     }
-     return ret;
+    return 0;
 }
 
 /* Timer for checking expired buffers */
@@ -387,6 +396,9 @@ static int __init eba_module_init(void)
      mod_timer(&eba_expired_buf_timer, jiffies + msecs_to_jiffies(EBA_CLEAN_BUFFER_CALLBACK_TIMER));
 
      ebp_init();
+     eba_internals_mem_stress_test();
+     eba_internals_rw_stress_test();
+
      EBA_INFO("Module loaded\n");
      return 0;
 

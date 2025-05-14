@@ -20,7 +20,7 @@ static inline uint32_t ebp_next_iid(void)
         return (uint32_t)atomic_inc_return_relaxed(&ebp_iid_ctr);
 }
 
-void *local_specs = NULL; /* local node‑specs buffer, allocated in ebp_init() */
+uint64_t local_specs = 0; /* local node‑specs buffer, allocated in ebp_init() */
 
 /*
  * Global packet_type structure for our 0xeba0 protocol.
@@ -121,7 +121,7 @@ void ebp_init(void)
 
     /* Pre‑allocate and fill the buffer holding *our* node‑specs; lifetime 0 = infinite. */
     local_specs = eba_internals_malloc(EBP_NODE_SPECS_MAX_SIZE, 0);
-    if (eba_utils_file_to_buf("/var/lib/eba/node_local.eba",(uint64_t)local_specs) < 0) {
+    if (eba_utils_file_to_buf("/var/lib/eba/node_local.eba",local_specs) < 0) {
         EBA_ERR("%s: reading node_local.eba failed\n", __func__);
     }
     /* Debug */
@@ -336,14 +336,13 @@ int ebp_op_alloc(uint32_t iid, const void *args, uint64_t arg_len, uint16_t node
     const struct ebp_op_alloc_args *alloc_args = args;
     EBA_DBG("%s: size=%llu life_time=%llu recv_buf=%llu\n",__func__,alloc_args->size,alloc_args->life_time,alloc_args->buffer_id);
 
-    void *new_buf = eba_internals_malloc(alloc_args->size, alloc_args->life_time);
-    if (!new_buf)
+    uint64_t buf_id = eba_internals_malloc(alloc_args->size, alloc_args->life_time);
+    if (!buf_id)
     {
         EBA_ERR("%s: eba_internals_malloc failed for size=%llu\n",__func__, alloc_args->size);
         send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
         return -ENOMEM;
     }
-    uint64_t buf_id = (uint64_t)new_buf;
     ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, node_id,NULL); 
     return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
 }
@@ -875,7 +874,7 @@ int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
                     uint16_t node_id, const unsigned char src_mac[6])
 {
     const struct ebp_op_discover_args *dc;
-    void  *specs_buf;
+    uint64_t specs_buf;
     int    rc;
 
     if (!args || arg_len < sizeof(*dc))
@@ -890,17 +889,17 @@ int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
         return -ENOMEM;
 
     /* Register or look-up node                        */
-    rc = ebp_register_node(ntohs(dc->mtu), src_mac, (uint64_t)specs_buf);
-    if (rc == -EEXIST) {                 /* already present → reuse buffer  */
+    rc = ebp_register_node(ntohs(dc->mtu), src_mac, specs_buf);
+    if (rc == -EEXIST) {                 /* already present -> reuse buffer  */
         eba_internals_free(specs_buf);
-        specs_buf = (void *)ebp_get_specs_from_node_mac(src_mac);
+        specs_buf = ebp_get_specs_from_node_mac(src_mac);
     } else if (rc < 0) {                 /* fatal error                     */
         eba_internals_free(specs_buf);
         return rc;
     }
 
     /* ACK with buffer-ID in the new “data” field      */
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,(uint64_t)specs_buf,src_mac,"enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,specs_buf,src_mac,"enp0s8");
 }
 
 void dump_iid_waiters(void)

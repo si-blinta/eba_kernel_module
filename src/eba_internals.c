@@ -10,6 +10,9 @@ spinlock_t eba_buffer_list_lock;
 /* genpool instance and its backing memory */
 struct gen_pool *eba_pool = NULL;
 void *eba_pool_mem = NULL;
+uint64_t current_id = 1; /* Global variable to keep track of the unique ID */
+/* This ID will be incremented for each allocation */
+struct spinlock eba_id_lock; /* Spinlock to protect the ID increment operation */
 
 /*========================================================================*/
 /*                       Memory‑pool Initialization                       */
@@ -50,7 +53,7 @@ int eba_internals_mempool_init(void)
      /* 4) Initialize the spinlock for tracking list operations */
 
      spin_lock_init(&eba_buffer_list_lock);
-
+     spin_lock_init(&eba_id_lock);
      EBA_INFO("%s: vmalloc pool %zu bytes -> genpool OK\n", __func__, (size_t)MEMORY_POOL_SIZE);
      return 0;
 }
@@ -59,7 +62,8 @@ int eba_internals_mempool_init(void)
 /*                         Allocate from the Pool                         */
 /*========================================================================*/
 
-void *eba_internals_malloc(uint64_t size, uint64_t life_time)
+/*I want instead of returning the virtual address, i want to return a unique ID*/
+uint64_t eba_internals_malloc(uint64_t size, uint64_t life_time)
 {
      unsigned long addr;
      void *ptr;
@@ -67,14 +71,14 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
 
      /* Prevent allocation if pool isn't ready */
      if (!eba_pool)
-          return NULL;
+          return 0;
 
      /* Grab 'size' bytes from the genpool */
      addr = gen_pool_alloc(eba_pool, size);
      if (!addr)
      {
           EBA_ERR("%s: gen_pool_alloc(%llu) failed\n", __func__, size);
-          return NULL;
+          return 0;
      }
      ptr = (void *)addr;
      /* Zero out new region for safety */
@@ -86,7 +90,7 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
      {
           EBA_ERR("EBA: Tracking structure allocation failed\n");
           gen_pool_free(eba_pool, addr, size);
-          return NULL;
+          return 0;
      }
      memset(buf, 0, sizeof(*buf));
 
@@ -98,7 +102,9 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
      /* Store the allocated pointer */
      buf->address = (unsigned long)ptr;
      buf->size = size;
-
+     spin_lock(&eba_id_lock);
+     buf->id = current_id++; /* Increment the ID for the next allocation */
+     spin_unlock(&eba_id_lock);
      /* Compute expiration (0 means “never expire”) */
      if (life_time != 0)
           buf->expires = ktime_get_real_seconds() + life_time;
@@ -111,30 +117,29 @@ void *eba_internals_malloc(uint64_t size, uint64_t life_time)
      list_add(&buf->node, &eba_buffer_list);
      spin_unlock(&eba_buffer_list_lock);
 
-     EBA_DBG("%s: new buf=%p size=%llu life=%llus\n",__func__, ptr, size, life_time);
-     EBA_INFO("%s: buf=%p size=%llu\n",__func__, ptr, size);
+     EBA_DBG("%s: id =%llu size=%llu life=%llus\n",__func__, buf->id,size, life_time);
 
-     return ptr;
+     return buf->id;
 }
 
 /*========================================================================*/
 /*                          Free a Single Buffer                          */
 /*========================================================================*/
 
-int eba_internals_free(void *ptr)
+int eba_internals_free(uint64_t id)
 {
      struct eba_buffer *buf;
      int found = 0;
 
      /* Reject NULL or uninitialized pool */
-     if (!eba_pool || !ptr)
+     if (!eba_pool)
           return -1;
 
      /* Find matching tracking entry */
      spin_lock(&eba_buffer_list_lock);
      list_for_each_entry(buf, &eba_buffer_list, node)
      {
-          if (buf->address == (unsigned long)ptr)
+          if (buf->id == id)
           {
                list_del(&buf->node);
                found = 1;
@@ -146,17 +151,17 @@ int eba_internals_free(void *ptr)
      /* If no tracking structure is found, log an error and return -1 */
      if (!found)
      {
-          EBA_WARN("%s: free of unknown ptr=%p\n", __func__, ptr);
+          EBA_WARN("%s: free of unknown id=%llu\n", __func__, id);
           return -1;
      }
 
      /* Return memory to the pool */
-     gen_pool_free(eba_pool, (unsigned long)ptr, buf->size);
+     gen_pool_free(eba_pool,buf->address, buf->size);
 
      /* Free the tracking structure */
      kfree(buf);
 
-     EBA_INFO("%s: freed buf=%p size=%llu\n", __func__, ptr, buf->size);
+     EBA_INFO("%s: freed buf=%llu size=%llu\n", __func__, buf->id, buf->size);
      return 0;
 }
 
@@ -181,7 +186,7 @@ void eba_internals_mempool_free(void)
      {
           list_for_each_entry_safe(buf, tmp, &eba_buffer_list, node)
           {
-               EBA_DBG("%s: force-free buf=%p size=%llu\n",__func__, (void*)buf->address, buf->size);
+               EBA_DBG("%s: force-free buf=%llu size=%llu\n",__func__, buf->id, buf->size);
                list_del(&buf->node);
                gen_pool_free(eba_pool, buf->address, buf->size);
                kfree(buf);
@@ -210,7 +215,7 @@ void eba_internals_mempool_free(void)
 int eba_internals_mem_stress_test(void)
 {
      const int num_allocs = 100; /* Number of allocations for the stress test */
-     void **allocations;         /* Array to store pointers to allocated memory */
+     uint64_t *allocations;         /* Array to store pointers to allocated memory */
      int *sizes;                 /* Array to store the sizes for each allocation */
      int i, ret;
 
@@ -226,11 +231,11 @@ int eba_internals_mem_stress_test(void)
           return -ENOMEM;
      }
 
-     /* Initialize sizes and set each allocation pointer to NULL */
+     /* Initialize sizes and set each allocation pointer to 0 */
      for (i = 0; i < num_allocs; i++)
      {
           sizes[i] = 16 + ((i * 31) % 1024);
-          allocations[i] = NULL;
+          allocations[i] = 0;
      }
 
      /* Allocation Phase: Allocate memory chunks and verify each allocation */
@@ -287,7 +292,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
      spin_lock(&eba_buffer_list_lock);
      list_for_each_entry(buf, &eba_buffer_list, node)
      {
-          if (buf->address == buff_id)
+          if (buf->id == buff_id)
           {
                found = 1;
                break;
@@ -313,7 +318,7 @@ int eba_internals_write(const void *data, uint64_t buff_id, uint64_t off, uint64
 
      /* Copy the data into the allocated buffer at the specified offset */
      memcpy((void *)(buf->address + off), data, size);
-     EBA_DBG("%s: buf=%p off=%llu size=%llu\n",__func__, (void*)buff_id, off, size);
+     EBA_DBG("%s: id=%llu off=%llu size=%llu\n",__func__, buff_id, off, size);
      spin_unlock(&buf->lock);
      /* Wake the process that is waiting on that buffer */
 
@@ -335,7 +340,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
      spin_lock(&eba_buffer_list_lock);
      list_for_each_entry(buf, &eba_buffer_list, node)
      {
-          if (buf->address == buff_id)
+          if (buf->id == buff_id)
           {
                found = 1;
                break;
@@ -364,7 +369,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
      memcpy(data_out, (void *)(buf->address + off), size);
      spin_unlock(&buf->lock);
 
-     EBA_DBG("%s: buf=%p off=%llu size=%llu\n",__func__, (void*)buff_id, off, size);
+     EBA_DBG("%s: id=%llu off=%llu size=%llu\n",__func__, buff_id, off, size);
      return 0;
 }
 
@@ -375,7 +380,7 @@ int eba_internals_read(void *data_out, uint64_t buff_id, uint64_t off, uint64_t 
 int eba_internals_rw_stress_test(void)
 {
      const int num_allocs = 100; /* Number of buffers to allocate for the test */
-     void **allocations;         /* Array to store allocated buffer pointers */
+     uint64_t *allocations;         /* Array to store allocated buffer pointers */
      int *sizes;                 /* Array to store the sizes for each buffer */
      int i, ret = 0;
      unsigned char *pattern = NULL;
@@ -397,7 +402,7 @@ int eba_internals_rw_stress_test(void)
      for (i = 0; i < num_allocs; i++)
      {
           sizes[i] = 16 + ((i * 31) % 1024); /* Buffer size will vary between 16 and about 1040 bytes */
-          allocations[i] = NULL;
+          allocations[i] = 0;
      }
 
      /* Allocation and test phase */
@@ -471,7 +476,7 @@ int eba_internals_rw_stress_test(void)
           kfree(pattern);
           kfree(read_back);
 
-          EBA_DBG("%s: buf[%d]=%p size=%d verified\n",__func__, i, allocations[i], sizes[i]);
+          EBA_DBG("%s: buf[%d]=%llu size=%d verified\n",__func__, i, allocations[i], sizes[i]);
      }
 
      EBA_INFO("%s: rw-stress PASS\n", __func__);

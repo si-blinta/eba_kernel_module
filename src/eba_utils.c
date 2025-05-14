@@ -152,7 +152,7 @@ int eba_export_node_specs(void)
 
 int test_eba_utils_file_to_buf(void)
 {
-    void *buff_id;
+    uint64_t buff_id;
     int ret;
     char tmpbuf[64]; /* small stack buffer to read/print a piece of data */
 
@@ -169,7 +169,7 @@ int test_eba_utils_file_to_buf(void)
     /* 2. Read from /tmp/test_input into this buffer.
      *    Make sure /tmp/test_input exists and has <=512 bytes.
      */
-    ret = eba_utils_file_to_buf("/tmp/test_input", (uint64_t)buff_id);
+    ret = eba_utils_file_to_buf("/tmp/test_input", buff_id);
     if (ret != 0)
     {
         EBA_ERR("%s: file_to_buf() failed: %d\n", __func__, ret);
@@ -197,7 +197,7 @@ int test_eba_utils_file_to_buf(void)
 
 int test_eba_utils_buf_to_file(void)
 {
-    void *buff_id;
+    uint64_t buff_id;
     char pattern[512];
     int i, ret;
 
@@ -218,7 +218,7 @@ int test_eba_utils_buf_to_file(void)
     }
 
     /* 3. Write this pattern to the EBA buffer */
-    ret = eba_internals_write(pattern, (uint64_t)buff_id, 0, sizeof(pattern));
+    ret = eba_internals_write(pattern, buff_id, 0, sizeof(pattern));
     if (ret < 0)
     {
         EBA_ERR("%s: write pattern failed: %d\n", __func__, ret);
@@ -247,7 +247,7 @@ int test_eba_utils_buf_to_file(void)
 int test_eba_export_node_specs(void)
 {
     int node_index = 0; /* We'll pick node 0 for the test */
-    void *buff_id;
+    uint64_t buff_id;
     char test_data[] = "Hello from node_0_specs!\n";
     int ret;
 
@@ -265,7 +265,7 @@ int test_eba_export_node_specs(void)
     }
 
     /* 3. Write some data into that buffer */
-    ret = eba_internals_write(test_data, (uint64_t)buff_id, 0, strlen(test_data));
+    ret = eba_internals_write(test_data, buff_id, 0, strlen(test_data));
     if (ret < 0)
     {
         EBA_ERR("%s: write test data failed: %d\n", __func__, ret);
@@ -274,7 +274,7 @@ int test_eba_export_node_specs(void)
     }
 
     /* 4. Store this buffer in node_infos[node_index].node_specs */
-    node_infos[node_index].node_specs = (uint64_t)buff_id;
+    node_infos[node_index].node_specs = buff_id;
 
     /*
      * 5. Call eba_export_node_specs()
