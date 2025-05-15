@@ -376,7 +376,6 @@ int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size)
 
     if (ret < 0)
     {
-        perror("ioctl(EBA_IOCTL_DEQUEUE)");
         return -1;
     }
     return 0 ;
