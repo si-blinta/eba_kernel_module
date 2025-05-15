@@ -1,6 +1,5 @@
 /*------------------------------------------------------------------------------
- *  Distributed prefix sum, this is the master node, its waaay to slow because i need to add the offsets on this node 
- Also there is no prefix sum operation on remote nodes so i end up sending a lot of invocations .
+ *  Distributed prefix sum,
  */
 
 #include <errno.h>
@@ -11,19 +10,35 @@
 #include <unistd.h>
 
 #include "eba_user.h"
-#define SIZE 999
-static int prefix_sum(uint64_t buffer_id, uint64_t offset, uint64_t size)
+#define NODES 3
+#define DEPOT 20
+#define SIZE 100
+#define REMAINDER SIZE%NODES
+
+static void prefix_sum(int* buf, uint64_t buffer_id, uint64_t offset, uint64_t size)
 {
-    int x1 = 0;
-    int x2 = 0;
-    for (uint64_t i = 1; i < size; i++)
-    {
-        eba_read(&x1, buffer_id, offset + (i-1) * sizeof(int), sizeof(int));
-        eba_read(&x2, buffer_id, offset + i * sizeof(int), sizeof(int));
-        x2 += x1;
-        eba_write(&x2, buffer_id, offset + i * sizeof(int), sizeof(int));
+    printf("[DEBUG] Entering prefix_sum with size: %lu\n", size);
+    int temp[SIZE] = {0};
+    eba_read(temp, buffer_id, offset, size * sizeof(int));
+    printf("[DEBUG] Initial buffer contents: ");
+    for (uint64_t i = 0; i < size; i++) {
+        printf("%d ", temp[i]);
     }
-    return 0;
+    printf("\n");
+    
+    // Copy to output buffer and compute prefix sum
+    memcpy(buf, temp, size * sizeof(int));
+    for (uint64_t i = 1; i < size; i++) {
+        buf[i] += buf[i-1];
+    }
+    
+    printf("[DEBUG] Final prefix sum result: ");
+    for (uint64_t i = 0; i < size; i++) {
+        printf("%d ", buf[i]);
+    }
+    printf("\n");
+    
+    eba_write(buf, buffer_id, offset, size * sizeof(int));
 }
 
 enum INVOKE_STATUS {
@@ -32,125 +47,122 @@ enum INVOKE_STATUS {
     INVOKE_FAILED,
     INVOKE_DEFAULT     
 };
-static int remote_prefix_sum(uint64_t buffer_id, uint64_t offset, uint64_t size,int node_id)
-{
-    uint64_t x1_x2 = eba_alloc(sizeof(int)*2,0,0);
-    int x1 = 0;
-    int x2 = 0; 
-    for (uint64_t i = 1; i < size; i++)
-    {
-        int iid;
-        iid = eba_remote_read(x1_x2,buffer_id,0,offset + (i-1) * sizeof(int),sizeof(int),node_id);
-        eba_wait_iid(iid,INVOKE_COMPLETED,1000);  
-        iid = eba_remote_read(x1_x2,buffer_id,sizeof(int),offset + i * sizeof(int),sizeof(int),node_id);
-        eba_wait_iid(iid,INVOKE_COMPLETED,1000);  
-        
-        eba_read(&x1, x1_x2, 0, sizeof(int));
-        eba_read(&x2, x1_x2, sizeof(int), sizeof(int));
-        x2 += x1;
-        iid= eba_remote_write(buffer_id,offset+ i * sizeof(int),sizeof(int),(const char*)&x2,node_id);
-        eba_wait_iid(iid,INVOKE_COMPLETED,1000);  
+
+uint64_t get_mac_address() {
+    const char *interface = "enp0s8";
+    char path[256], mac_str[18];
+    snprintf(path, sizeof(path), "/sys/class/net/%s/address", interface);
+    FILE *fp = fopen(path, "r");
+    if (!fp || !fgets(mac_str, sizeof(mac_str), fp)) {
+        perror("Error reading MAC address");
+        exit(EXIT_FAILURE);
     }
-    return 0;
+    fclose(fp);
+    
+    printf("[DEBUG] MAC address read: %s\n", mac_str);
+
+    uint64_t mac = 0;
+    unsigned int mac_bytes[6];
+    if (sscanf(mac_str, "%x:%x:%x:%x:%x:%x",
+               &mac_bytes[0], &mac_bytes[1], &mac_bytes[2],
+               &mac_bytes[3], &mac_bytes[4], &mac_bytes[5]) == 6) {
+        for (int i = 0; i < 6; i++) {
+            mac = (mac << 8) | mac_bytes[i];
+        }
+        printf("[DEBUG] Parsed MAC address value: %lu\n", mac);
+    } else {
+        fprintf(stderr, "Failed to parse MAC address\n");
+        exit(EXIT_FAILURE);
+    }
+    return mac;
 }
+
 int array[SIZE];
+
 int main()
 {
+    uint64_t node_id = get_mac_address();
+    printf("[DEBUG] Node MAC id: %lu\n", node_id);
+
     
-    for (int i = 0; i < SIZE; i++)
+    if( node_id == (uint64_t) 1 )/*leader*/
     {
-        array[i] = i;
+        printf("[DEBUG] Node %lu is leader\n", node_id);
+                // initialize array
+        for (int i = 0; i < SIZE; i++)
+        {
+            array[i] = i;
+        }
+        printf("[DEBUG] Array initialized\n");
+        /*Register the 'DEPOT' buffer */
+        uint64_t depot_id = eba_alloc(SIZE*sizeof(int),0,0);
+        printf("[DEBUG] Allocated depot buffer with id: %lu\n", depot_id);
+        eba_register_service(depot_id, DEPOT);
+        printf("[DEBUG] Registered service for depot id: %lu with service number: %d\n", depot_id, DEPOT);
+        // Send parts of the array to remote nodes
+        int* node1_ptr = array + SIZE/NODES + REMAINDER;
+
+        size_t segment_bytes = (SIZE/NODES) * sizeof(int);
+        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node1_ptr, 1);
+
+        // Calculate the pointer and size for node 2's segment
+        int* node2_ptr = array + (2*SIZE)/NODES + REMAINDER;
+        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node2_ptr, 2);
+        uint64_t local =eba_alloc((SIZE/NODES + REMAINDER)*sizeof(int),0,0);
+        eba_write(array,local,0,(SIZE/NODES + REMAINDER)*sizeof(int));
+        int result[SIZE] = {0};
+        prefix_sum(result,local,0,SIZE/NODES + REMAINDER);
+        
+
+        printf("[DEBUG] Waiting for depot buffer for first segment\n");
+        eba_wait_buffer(DEPOT, 5000);
+        uint64_t depot_offset = (SIZE/NODES + REMAINDER) * sizeof(int); 
+        eba_read(result+(SIZE/NODES + REMAINDER), DEPOT, depot_offset, (SIZE/NODES)*sizeof(int));
+
+        printf("[DEBUG] Waiting for depot buffer for second segment\n");
+        eba_wait_buffer(DEPOT, 5000);
+        depot_offset = (2*(SIZE/NODES) + REMAINDER) * sizeof(int);
+        eba_read(result+(2*(SIZE/NODES) + REMAINDER), DEPOT, depot_offset, (SIZE/NODES)*sizeof(int));
+
+        // Now i need to actually add the "offset to the array"
+        int offset = result[SIZE/NODES];
+        for(int i = SIZE/NODES + REMAINDER ; i < 2*(SIZE/NODES)+REMAINDER;i++ )
+        {   
+            result[i]+= offset;
+        }
+        offset = result[2*(SIZE/NODES)];
+        for(int i = 2*(SIZE/NODES)+REMAINDER ; i < SIZE;i++ )
+        {   
+            result[i]+= offset;
+        }
+        for(int i = 0 ; i<SIZE;i++)
+        {
+            printf("%d ",result[i]);
+        }
+        printf("\n");
+
+
+        
     }
-    printf("original array:\n");
-    for (int i = 0; i < SIZE; i++)
+    else 
     {
-        printf("%d ", array[i]);
-    }   
-    printf("\n");
+        printf("[DEBUG] Node %lu is a worker node\n", node_id);
+        uint64_t service_id = eba_alloc(SIZE*sizeof(int), 0, 0);
+        eba_register_service(service_id, EBA_SERVICE_PREFIX_SUM);
+        eba_wait_buffer(EBA_SERVICE_PREFIX_SUM, 0); 
 
-    uint64_t buffer_id = eba_alloc(sizeof(int)*SIZE/3,0,0);
-    eba_write(array, buffer_id, 0, sizeof(int)*SIZE/3);
+        // Compute prefix sum on our segment
+        int result[SIZE/NODES];
+        prefix_sum(result,EBA_SERVICE_PREFIX_SUM,0,SIZE/NODES);
+        
 
-    uint64_t node_1_buffer_id_holder = eba_alloc(8,0,0);
-    uint64_t node_2_buffer_id_holder = eba_alloc(8,0,0);
-
-    int iid = eba_remote_alloc(sizeof(int)*SIZE/3,0,node_1_buffer_id_holder,1);
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-    iid = eba_remote_alloc(sizeof(int)*SIZE/3,0,node_2_buffer_id_holder,2);
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-
-    uint64_t node_1_buffer_id;
-    uint64_t node_2_buffer_id;
-    eba_read(&node_1_buffer_id, node_1_buffer_id_holder, 0, 8);
-    eba_read(&node_2_buffer_id, node_2_buffer_id_holder, 0, 8);
-    printf("node_1_buffer_id: %lu\n", node_1_buffer_id);
-    printf("node_2_buffer_id: %lu\n", node_2_buffer_id);
-    
-
-    iid = eba_remote_write(node_1_buffer_id,0, sizeof(int)*SIZE/3,(const char*)array+sizeof(int)*SIZE/3,1);
-    printf("sent this array to node 1:\n");
-    for (int i = 0; i < SIZE/3; i++)
-    {
-        printf("%d ", *((int*)((char*)array + sizeof(int) * (SIZE/3 + i))));
-    }
-    printf("\n");
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-
-
-    iid = eba_remote_write(node_2_buffer_id,0,sizeof(int)*SIZE/3,(const char*)array+2*sizeof(int)*SIZE/3,2);
-    printf("sent this array to node 2:\n");
-    for (int i = 0; i < SIZE/3; i++)
-    {
-        printf("%d ", *((int*)((char*)array + 2*sizeof(int)*SIZE/3 + sizeof(int) * i)));
-    }
-    printf("\n");
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-    remote_prefix_sum(node_1_buffer_id,0,SIZE/3,1);
-    remote_prefix_sum(node_2_buffer_id,0,SIZE/3,2);
-    prefix_sum( buffer_id,0,SIZE/3);
-
-
-    uint64_t result_buf = eba_alloc(sizeof(int)*SIZE,0,0);
-    int buf[SIZE/3];
-    eba_read(buf, buffer_id, 0, sizeof(int)*SIZE/3);
-    eba_write((const char*)buf,result_buf, 0, sizeof(int)*SIZE/3);
-    iid = eba_remote_read(result_buf,node_1_buffer_id,sizeof(int)*SIZE/3,0,sizeof(int)*SIZE/3,1);
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-    iid = eba_remote_read(result_buf,node_2_buffer_id,2*sizeof(int)*SIZE/3,0,sizeof(int)*SIZE/3,2);
-    eba_wait_iid(iid,INVOKE_COMPLETED,1000);
-
-    /*Add the offsets to the result buff */
-    int offset = 0;
-    eba_read(&offset, result_buf, sizeof(int)*SIZE/3 - sizeof(int), sizeof(int));
-    eba_read(buf, result_buf, sizeof(int)*SIZE/3,sizeof(int)*SIZE/3);
-    for (int i = 0; i < SIZE/3; i++)
-    {
-        //debug 
-        printf("offset: %d\n", offset);
-        printf("buf[%d]: %d\n", i, buf[i]);
-        buf[i] += offset;
-
-    }
-    eba_write((const char*)buf,result_buf, sizeof(int)*SIZE/3, SIZE/3*sizeof(int));
-    eba_read(&offset, result_buf, 2*sizeof(int)*SIZE/3 - sizeof(int), sizeof(int));
-    eba_read(buf, result_buf, 2*sizeof(int)*SIZE/3,sizeof(int)*SIZE/3);
-    for (int i = 0; i < SIZE/3; i++)
-    {
-        //debug 
-        printf("offset: %d\n", offset);
-        printf("buf[%d]: %d\n", i, buf[i]);
-        buf[i] += offset;
+        uint64_t depot_offset = ((node_id -1) * (SIZE/NODES) + REMAINDER) * sizeof(int); 
+        int iid = eba_remote_write(DEPOT, depot_offset, (SIZE/NODES)*sizeof(int), (const char*)result, 0);
+        if(iid == 0)
+            printf("erreur eba_remote_write\n");
 
     }
-    eba_write((const char*)buf,result_buf, 2*sizeof(int)*SIZE/3, SIZE/3*sizeof(int));
 
-    printf("result array:\n");
-    int result[SIZE];
-    eba_read(result, result_buf, 0, sizeof(int)*SIZE);
-    for (int i = 0; i < SIZE; i++)
-    {
-        printf("%d ", result[i]);
-    }
-    printf("\n");
-    
+    printf("[DEBUG] Program finished\n");
+    return 0;
 }
