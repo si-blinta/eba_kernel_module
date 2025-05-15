@@ -1,6 +1,5 @@
 /*------------------------------------------------------------------------------
- *  Distributed prefix sum, this is the master node, its waaay to slow because i need to add the offsets on this node 
- Also there is no prefix sum operation on remote nodes so i end up sending a lot of invocations .
+    This can only work if we have the enqueue, dequeue and we need also to have asynchrounous functions !
  */
 
 #include <errno.h>
@@ -41,19 +40,49 @@ uint64_t get_mac_address() {
     }
     return mac;
 }
-
+#define EBA_SERVICE_LE 69
 
 
 int main()
 {
     
-    /* i want to do a leader election, we have 3 nodes, it means that each node will receive 2 mac addresseses, the problem is :
-    each node will wait to receive the mac addresses on the same buffer, nodes can overwrite other nodes buffers, whats the solution ?
-    imagine: node A and node B sends their mac addresses to node C, node C will only receive the last one because the buffer is overwritten.
-    the solution is to use a buffer for each node, so node A will send its mac address to node C and node B will send its mac address to node C, then node C will have 2 buffers, one for each node.
-    but this is bad, i want to have only one buffer, whats the solution ?
-    
-    */
+    uint64_t le_id = eba_alloc(1024, 0, 0);
+    if (le_id == 0) {
+        fprintf(stderr, "Failed to allocate buffer\n");
+        return EXIT_FAILURE;
+    }
+    if(eba_register_service(le_id,EBA_SERVICE_LE) <0){
+        fprintf(stderr, "Failed to register service\n");
+        return EXIT_FAILURE;
+    }
+    if(eba_register_queue(EBA_SERVICE_LE) <0){
+        fprintf(stderr, "Failed to register queue\n");
+        return EXIT_FAILURE;
+    }
+    uint64_t mac = get_mac_address();
+    /*Broadcast enqueue the mac address */
+    printf("tap to start the leader election\n");
+    getchar();
+    printf("Broadcast Enqueuing MAC address: %016lx\n", mac);
+    int iid = eba_remote_enqueue(EBA_SERVICE_LE, &mac, sizeof(mac), 0);
+    if (iid < 0) {
+        fprintf(stderr, "Failed to enqueue MAC address\n");
+        return EXIT_FAILURE;
+    }
+    eba_wait_buffer(EBA_SERVICE_LE, 0);
+    uint64_t neighbor_mac[2];
+    eba_dequeue(EBA_SERVICE_LE, &neighbor_mac[0], sizeof(neighbor_mac[0]));
+    printf("Received MAC address: %016lx\n", neighbor_mac[0]);
+    if(neighbor_mac[0] > mac){
+        printf("I am not the leader\n");
+        return EXIT_SUCCESS;
+    }
+    printf("I am the leader\n");
+
+
+
+
+
 
 
 
