@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-
+#define EBA_SERVICE_PREFIX_SUM 10
 #include "eba_user.h"
 #define NODES 3
 #define DEPOT 20

@@ -17,6 +17,7 @@
 #include <linux/types.h> 
 #include <linux/atomic.h>
 
+#define INTERFACE_NAME "enp0s8"  /* Network interface name for EBA communication */
 /* EBA Protocol Constants */
 
 /** EBA EtherType used to identify EBA frames in Ethernet communication. */

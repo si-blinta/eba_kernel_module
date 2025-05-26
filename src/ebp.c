@@ -310,7 +310,7 @@ int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_
     if (ret < 0 )
     {
         EBA_ERR("%s: eba_internals_write failed\n",__func__);
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         return ret;
         
     }
@@ -327,7 +327,7 @@ int ebp_op_write(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_
             }
         }
         spin_unlock(&buffer_waiter_lock);
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, INTERFACE_NAME);
 }
 
 int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
@@ -355,7 +355,7 @@ int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t nod
     if (ret < 0 )
     {
         EBA_ERR("%s: eba_internals_enqueue failed\n",__func__);
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         return ret;
         
     }
@@ -372,7 +372,7 @@ int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t nod
             }
         }
         spin_unlock(&buffer_waiter_lock);
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, INTERFACE_NAME);
 }
 
 
@@ -392,11 +392,11 @@ int ebp_op_alloc(uint32_t iid, const void *args, uint64_t arg_len, uint16_t node
     if (!buf_id)
     {
         EBA_ERR("%s: eba_internals_malloc failed for size=%llu\n",__func__, alloc_args->size);
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         return -ENOMEM;
     }
     ebp_remote_write(alloc_args->buffer_id, 0, sizeof(buf_id), (char *)&buf_id, node_id,NULL); 
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, "enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac, INTERFACE_NAME);
 }
 
 int ebp_op_read(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
@@ -418,7 +418,7 @@ int ebp_op_read(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id
     if (ret < 0)
     {
         EBA_ERR("%s: eba_internals_read failed rc=%d\n",__func__, ret);;
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         kfree(read_data);
         return ret;
     }
@@ -426,13 +426,13 @@ int ebp_op_read(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id
     if (ret < 0)
     {
         EBA_ERR("%s: ebp_remote_write failed rc=%d\n",__func__, ret);
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         kfree(read_data);
         return ret;
     }
 
     EBA_DBG("%s: read+forward %llu bytes\n", __func__, rd_args->size);
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,INTERFACE_NAME);
 }
 
 int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
@@ -455,7 +455,7 @@ int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node
     if (ret < 0)
     {
         EBA_ERR("%s: eba_internals_dequeue failed rc=%d\n",__func__, ret);;
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         kfree(dequeued_data);
         return ret;
     }
@@ -464,13 +464,13 @@ int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node
     if (ret < 0)
     {
         EBA_ERR("%s: ebp_remote_write failed rc=%d\n",__func__, ret);
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         kfree(dequeued_data);
         return ret;
     }
 
     EBA_DBG("%s: read+forward %llu bytes\n", __func__, da->size);
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,INTERFACE_NAME);
 }
 
 int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6])
@@ -491,11 +491,11 @@ int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16
     if (ret < 0)
     {
         EBA_ERR("%s: eba_internals_register_queue failed rc=%d\n",__func__, ret);;
-        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, "enp0s8");
+        send_invoke_ack_packet(iid,INVOKE_FAILED,0,src_mac, INTERFACE_NAME);
         return ret;
     }
     EBA_DBG("%s: eba_internals_register_queue rc=%d\n",__func__, ret);
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,"enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,0,src_mac,INTERFACE_NAME);
 }
 
 static const unsigned char broadcast_mac[6]={0xff,0xff,0xff,0xff,0xff,0xff};
@@ -527,7 +527,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, INTERFACE_NAME);
 
     
     if (ret < 0)
@@ -567,7 +567,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
@@ -606,7 +606,7 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, INTERFACE_NAME);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
@@ -645,7 +645,7 @@ int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t 
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_DEQUEUE, (char *)&dequeue_args, sizeof(dequeue_args), NULL, 0, dest_mac, "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_DEQUEUE, (char *)&dequeue_args, sizeof(dequeue_args), NULL, 0, dest_mac, INTERFACE_NAME);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet rc=%d\n",__func__, ret);
@@ -682,7 +682,7 @@ int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uin
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&enqueue_args, sizeof(enqueue_args), payload, enqueue_args.size,dest_mac , "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&enqueue_args, sizeof(enqueue_args), payload, enqueue_args.size,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
@@ -716,7 +716,7 @@ int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_o
     uint32_t iid = ebp_next_iid();
     if (iid_out)
                 *iid_out = iid;
-    int ret = send_invoke_req_packet(iid, EBP_OP_REGISTER_QUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , "enp0s8");
+    int ret = send_invoke_req_packet(iid, EBP_OP_REGISTER_QUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
         EBA_ERR("%s: send_invoke_req_packet ret=%d\n",__func__, ret);
@@ -878,7 +878,7 @@ int ebp_remote_write_mtu(int node_id, uint64_t buff_id, uint64_t total_size, con
     /* Retrieve the MTU for the specified node and substract the header size the min of the local node mtu and the remote one (there is some MTU_OVERHEAD i need figure out why is that,
     i found out using tcpdump that there is some 38 bytes that are added) */
     uint16_t remote_mtu = ebp_get_mtu_from_node_id(node_id);
-    uint16_t local_mtu = eba_net_get_current_mtu("enp0s8");
+    uint16_t local_mtu = eba_net_get_current_mtu(INTERFACE_NAME);
     mtu = min((remote_mtu - (sizeof(struct ebp_invoke_req) + MTU_OVERHEAD)), local_mtu);
     EBA_DBG("%s: Calculated MTU = %u (remote_mtu=%u, local_mtu=%u, overhead=%lu)\n", __func__,mtu, remote_mtu, local_mtu, sizeof(struct ebp_invoke_req) + MTU_OVERHEAD);
     if (mtu <= 0)
@@ -914,14 +914,14 @@ int ebp_discover(void)
     EBA_DBG("%s:\n", __func__);
     int ret;
     struct ebp_op_discover_args dc = {
-        .mtu = htons(eba_net_get_current_mtu("enp0s8"))
+        .mtu = htons(eba_net_get_current_mtu(INTERFACE_NAME))
     };
     if (dc.mtu < 0)
     {
         EBA_ERR("%s: get_current_mtu failed rc=%d\n",__func__, dc.mtu);
         return -1;
     }
-    ret =  send_invoke_req_packet(0, EBP_OP_DISCOVER,(char *)&dc, sizeof(dc),NULL, 0,broadcast_mac, "enp0s8");
+    ret =  send_invoke_req_packet(0, EBP_OP_DISCOVER,(char *)&dc, sizeof(dc),NULL, 0,broadcast_mac, INTERFACE_NAME);
     if(ret < 0 )
     {
         EBA_ERR("%s: send_discover_req_packet failed rc=%d\n",__func__, ret);
@@ -966,7 +966,7 @@ int ebp_remote_write_fixed_mtu_mac(const unsigned char dest_mac[6],uint16_t  for
         };
 
         int rc = send_invoke_req_packet(ebp_next_iid(), EBP_OP_WRITE,(char *)&wr, sizeof(wr),
-                                        payload + off, seg,dest_mac, "enp0s8");
+                                        payload + off, seg,dest_mac, INTERFACE_NAME);
         if (rc < 0)
         {
             EBA_ERR("%s: write_fixed at off=%llu rc=%d\n",__func__, off, rc);
@@ -1135,7 +1135,7 @@ int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
     }
 
     /* ACK with buffer-ID in the new “data” field      */
-    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,specs_buf,src_mac,"enp0s8");
+    return send_invoke_ack_packet(iid,INVOKE_COMPLETED,specs_buf,src_mac,INTERFACE_NAME);
 }
 
 void dump_iid_waiters(void)

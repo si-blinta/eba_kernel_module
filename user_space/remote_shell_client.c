@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include "eba_user.h"
-
+#define EBA_SERVICE_REMOTE_SHELL 12
 #define CMD_SIZE 512
 #define OUTPUT_SIZE 512
 

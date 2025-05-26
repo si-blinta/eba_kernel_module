@@ -134,30 +134,91 @@ int eba_export_node_specs(void);
  */
 int eba_get_node_infos(struct eba_node_info *out);
 
+
+/**
+ * eba_wait_iid() - Sleep on an invocation id, wake up when the target status is received or time out occured. 
+ * @iid: invocation id, returned by a remote operation
+ * @status: the goal status
+ * @timeout_ms: time out in ms
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_wait_iid(uint32_t iid, uint8_t status, uint32_t timeout_ms);
 
+
+/**
+ * eba_wait_buffer() - Sleep on a buffer, wake up when the buffer is written onto it.
+ * @buffer_id: target buffer id
+ * @timeout_ms: time out in ms
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_wait_buffer(uint64_t buffer_id, uint32_t timeout_ms);
 
+/**
+ * eba_register_service() - Choose a name for a buffer. 
+ * @brief: the idea is to have buffer id as a "port", so other nodes could access it.
+ * @buff_id: target buffer id
+ * @new_id: the new id
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_register_service(uint64_t buff_id, uint64_t new_id);
 
+/**
+ * eba_register_queue() - make a buffer as a queue.
+ * @brief: the idea is to structure a buffer to be able to use queue operations.
+ * @buff_id: target buffer
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_register_queue(uint64_t buff_id);
+
+/**
+ * eba_enqueue() - Enqueue data to a buffer.
+ * @buff_id: target buffer (needs to be registred as queue)
+ * @data: the data to enqueue
+ * @size: size of the data
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_enqueue(uint64_t buff_id, void *data, uint64_t size);
+
+/**
+ * eba_dequeue() - Dequeue data from a buffer.
+ * @buff_id: target buffer
+ * @data_out: output
+ * @size: size of data to dequeue 
+ * @return 0 on success, or a negative error code on failure.
+ */
 int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
 
+/**
+ * eba_remote_register_queue() - make a buffer as a queue remotely.
+ * @brief: the idea is to structure a buffer to be able to use queue operations.
+ * @buff_id: target buffer
+ * @node_id: target node
+ * @return an iid on success, or a 0 on failure.
+ */
 int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id);
+
+/**
+ * eba_remote_enqueue() - Enqueue data to a buffer remotely.
+ * @buff_id: target buffer (needs to be registred as queue)
+ * @data: the data to enqueue
+ * @size: size of the data
+ * @node_id: target node id
+ * @return an iid on success, or a 0 on failure.
+ */
 int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id);
+
+
+/**
+ * eba_remote_dequeue() - Dequeue data from a buffer remotely.
+ * @src_buff_id: target buffer
+ * @dst_buff_id: output
+ * @dst_offset: offset in the destination buffer
+ * @size: size of data to dequeue 
+ * @node_id: target node id
+ * @return an iid on success, or a 0 on failure.
+ */
 int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id);
 
-
-
-
-
-
-#define EBA_SERVICE_REMOTE_SHELL 0x1
-#define EBA_SERVICE_HTTP 0x2
-#define EBA_SERVICE_FTP 0x3
-#define EBA_SERVICE_TFTP 0x4
-#define EBA_SERVICE_PREFIX_SUM 0x5
 
 
 #endif
