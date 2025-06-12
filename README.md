@@ -8,6 +8,9 @@ The Exposed Buffer Architecture (EBA) is a model that exposes low-level buffer o
 
 ## How to Use
 
+**Configure the Network interface**
+    modify INTERFACE_NAME macro in include/ebp.h file.
+
 1. **Build the module:**
     ```
     make
