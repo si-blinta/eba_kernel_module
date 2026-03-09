@@ -179,7 +179,10 @@ struct eba_write {
  * @life_time:  Lifetime for the remote buffer allocation in seconds.
  * @buffer_id:  Buffer id that will store the remotely allocated buffer.
  * @node_id:    Target node id .
- * @iid:        The invocation id that will be returned.
+ * @iid:        The invocation id (filled by the driver).
+ * @timeout_ms: Maximum time to wait for the ACK (0 == infinite).
+ * @rc:         Result code filled by the driver (0 on success, negative on error,
+ *              -ETIMEDOUT on timeout).
  * This structure is used to request a buffer allocation on a remote node.
  */
 struct eba_remote_alloc{
@@ -188,16 +191,21 @@ struct eba_remote_alloc{
     __u64 buffer_id;
     __u16 node_id;
     __u32 iid;
+    __u32 timeout_ms;
+    __s32 rc;
 };
 
 /**
  * struct eba_remote_write - Structure for remote buffer write operations via IOCTL.
- * @buff_id:  Remote buffer identifier.
- * @offset:   Offset within the remote buffer where the write operation should begin.
- * @size:     Number of bytes to write.
- * @payload:  Pointer to the data payload to be written.
- * @node_id:  Target node id .
- * @iid:      The invocation id that will be returned.
+ * @buff_id:    Remote buffer identifier.
+ * @offset:     Offset within the remote buffer where the write operation should begin.
+ * @size:       Number of bytes to write.
+ * @payload:    Pointer to the data payload to be written.
+ * @node_id:    Target node id .
+ * @iid:        The invocation id (filled by the driver).
+ * @timeout_ms: Maximum time to wait for the ACK (0 == infinite).
+ * @rc:         Result code filled by the driver (0 on success, negative on error,
+ *              -ETIMEDOUT on timeout).
  * This structure is used to send a write request to a remote node by specifying the target
  * buffer, the offset within that buffer, and the data to be written.
  */
@@ -208,6 +216,8 @@ struct eba_remote_write{
     char* payload;
     __u16 node_id;
     __u32 iid;
+    __u32 timeout_ms;
+    __s32 rc;
     
 };
 
@@ -219,7 +229,10 @@ struct eba_remote_write{
  * @src_offset:    Offset within the source buffer where the reading should begin.
  * @size:          Number of bytes to read.
  * @node_id:       Target node id .
- * @iid:           The invocation id that will be returned.
+ * @iid:           The invocation id (filled by the driver).
+ * @timeout_ms:    Maximum time to wait for the ACK (0 == infinite).
+ * @rc:            Result code filled by the driver (0 on success, negative on error,
+ *                 -ETIMEDOUT on timeout).
  * This structure is used to request a read operation from a remote node. It specifies
  * both the source (remote) buffer and the destination (local) buffer along with the respective
  * offsets and the size of data to be transferred.
@@ -232,6 +245,8 @@ struct eba_remote_read {
     __u64 size;
     __u16 node_id;
     __u32 iid;
+    __u32 timeout_ms;
+    __s32 rc;
     
 };
 
@@ -330,13 +345,18 @@ struct eba_dequeue
  * struct eba_remote_register_queue - userspace argument for EBA_IOCTL_REMOTE_REGISTER_QUEUE
  * @buff_id:       Buffer-ID to register as a queue
  * @node_id:      Target node ID for the queue registration
- * @iid:          Invocation ID for the queue registration
+ * @iid:          Invocation ID (filled by the driver)
+ * @timeout_ms:   Maximum time to wait for the ACK (0 == infinite)
+ * @rc:           Result code filled by the driver (0 on success, negative on error,
+ *                -ETIMEDOUT on timeout)
  */
 struct eba_remote_register_queue
 {
     __u64  buff_id;
     __u16  node_id;
     __u32  iid;
+    __u32  timeout_ms;
+    __s32  rc;
 };
 
 /**
@@ -345,7 +365,10 @@ struct eba_remote_register_queue
  * @data:         Pointer to the data to enqueue
  * @size:         Number of bytes to enqueue
  * @node_id:      Target node ID for the enqueue operation
- * @iid:          Invocation ID for the enqueue operation
+ * @iid:          Invocation ID (filled by the driver)
+ * @timeout_ms:   Maximum time to wait for the ACK (0 == infinite)
+ * @rc:           Result code filled by the driver (0 on success, negative on error,
+ *                -ETIMEDOUT on timeout)
  */
 struct eba_remote_enqueue
 {
@@ -354,6 +377,8 @@ struct eba_remote_enqueue
     __u64  size;
     __u16  node_id;
     __u32  iid;
+    __u32  timeout_ms;
+    __s32  rc;
 };
 
 /**
@@ -363,7 +388,10 @@ struct eba_remote_enqueue
  * @data:         Pointer to the data to dequeue
  * @size:         Number of bytes to dequeue
  * @node_id:      Target node ID for the dequeue operation
- * @iid:          Invocation ID for the dequeue operation
+ * @iid:          Invocation ID (filled by the driver)
+ * @timeout_ms:   Maximum time to wait for the ACK (0 == infinite)
+ * @rc:           Result code filled by the driver (0 on success, negative on error,
+ *                -ETIMEDOUT on timeout)
  */
 struct eba_remote_dequeue
 {
@@ -373,6 +401,8 @@ struct eba_remote_dequeue
     __u64  size;
     __u16  node_id;
     __u32  iid;
+    __u32  timeout_ms;
+    __s32  rc;
 };
 
 

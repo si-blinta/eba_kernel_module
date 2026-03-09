@@ -18,15 +18,7 @@
  #include <stdint.h>
  #include <ctype.h>
  #include <unistd.h>      
- #include "eba_user.h"      
- 
- enum INVOKE_STATUS {
-     INVOKE_QUEUED = 0,
-     INVOKE_COMPLETED,
-     INVOKE_FAILED,
-     INVOKE_DEFAULT
- };
- 
+ #include "eba_user.h"
  int main(void)
  {
     /*1.Listen on an 8-byte “port”.*/
@@ -58,17 +50,9 @@
      }
  
      /* send echo_buf_id back to the client */
-     int iid = eba_remote_write(client_buf_id,0,8,(const char *)&echo_buf_id,0); 
-     if (iid == 0) {
-         fprintf(stderr, "eba_remote_write() returned 0 (failure)\n");
-         return EXIT_FAILURE;
-     }
-     int ret = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-     if (ret == 1) {
-         fprintf(stderr, "wait timeout on remote_write\n");
-         return EXIT_FAILURE;
-     } else if (ret < 0) {
-         fprintf(stderr, "error while waiting on remote_write\n");
+     int ret = eba_remote_write(client_buf_id, 0, 8, (const char *)&echo_buf_id, 0, 5000);
+     if (ret < 0) {
+         fprintf(stderr, "eba_remote_write() failed (rc=%d)\n", ret);
          return EXIT_FAILURE;
      }
      printf("echo buffer id sent to client = %lu\n", echo_buf_id);

@@ -448,26 +448,30 @@ int ebp_op_discover(uint32_t iid,const void *args, uint64_t arg_len,
  * @life_time:     Lifetime of the buffer allocation.
  * @local_buff_id: Local buffer identifier where the allocated buffer's ID will be stored.
  * @node_id:       Target node id, 0 for broadcast.
- * @iid_out:       The invocation id of that call.
+ * @iid_inout:     If non-NULL and *iid_inout is non-zero on entry, that IID is used
+ *                 (pre-allocated by the caller).  Otherwise, a fresh IID is generated
+ *                 and written back.  Pass NULL to discard the IID.
  * This function sends a remote allocation request to a distant node.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id, uint32_t *iid_out);
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id, uint32_t *iid_inout);
 
 /**
  * ebp_remote_write - Write data to a remote pre-allocated buffer.
- * @buff_id: Remote buffer identifier.
- * @offset:  Byte offset in the remote buffer where writing should begin.
- * @size:    Size of the data payload to write.
- * @payload: Pointer to the data payload.
+ * @buff_id:    Remote buffer identifier.
+ * @offset:     Byte offset in the remote buffer where writing should begin.
+ * @size:       Size of the data payload to write.
+ * @payload:    Pointer to the data payload.
  * @node_id:    Target node id, 0 for broadcast.
- * @iid_out:       The invocation id of that call.
+ * @iid_inout:  If non-NULL and *iid_inout is non-zero on entry, that IID is used
+ *              (pre-allocated by the caller).  Otherwise, a fresh IID is generated
+ *              and written back.  Pass NULL to discard the IID.
  * This function sends a request to write data to a remote node's buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id,uint32_t *iid_out);
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id,uint32_t *iid_inout);
 
 /**
  * ebp_remote_read - Read data from a remote pre-allocated buffer into a local buffer.
@@ -477,12 +481,14 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @src_offset:    Byte offset within the remote buffer where reading should start.
  * @size:          Number of bytes to read.
  * @node_id:       Target node id, 0 for broadcast.
- * @iid_out:       The invocation id of that call.
+ * @iid_inout:     If non-NULL and *iid_inout is non-zero on entry, that IID is used
+ *                 (pre-allocated by the caller).  Otherwise, a fresh IID is generated
+ *                 and written back.  Pass NULL to discard the IID.
  * This function sends a request to read data from a remote node's buffer into a local buffer.
  *
  * @return 0 on success, or a negative error code on failure.
  */
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id,uint32_t *iid_out);
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id,uint32_t *iid_inout);
 
 /**
  * ebp_register_node - Register a new node in the global node_infos array.
@@ -707,13 +713,39 @@ struct iid_waiter {
  * iid_waiter_alloc() - reserve a slot in iid_waiters[]
  *
  * @iid:           Invocation-ID that the future waiter will watch
- * @wanted_stat:   status byte that will wake it
+ * @wanted_stat:   status byte (kept for backward compat; ACK handler wakes on
+ *                 any status for a matching IID)
  * @tsk:           sleeping task_struct (may be NULL for pre-registration)
  *
  * Return: pointer to the freshly initialised slot, or NULL if the table is
  *         full.  Caller must hold waiter_lock.
  */
 struct iid_waiter * iid_waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct *tsk);
+
+/**
+ * ebp_alloc_iid_waiter() - atomically generate a fresh IID and pre-register a
+ *                          waiter for it.
+ *
+ * Generating the IID and reserving the waiter slot in a single call ensures
+ * that an ACK can never arrive before the waiter is in place, which would
+ * otherwise cause a deadlock.
+ *
+ * @iid_out: filled with the newly allocated IID on success (must not be NULL)
+ * @tsk:     task_struct that will sleep; pass @current from IOCTL context
+ *
+ * Return: pointer to the initialised iid_waiter slot, or NULL if the waiter
+ *         table is full.
+ */
+struct iid_waiter *ebp_alloc_iid_waiter(uint32_t *iid_out, struct task_struct *tsk);
+
+/**
+ * ebp_free_iid_waiter() - release a waiter slot back to the pool.
+ *
+ * @w: waiter to release; ignored if NULL.
+ *
+ * Safe to call whether or not the waiter was ever woken.
+ */
+void ebp_free_iid_waiter(struct iid_waiter *w);
 
 /* ===================================================================== */
 /*                       BUFFER–WAIT SUPPORT                             */
@@ -772,13 +804,13 @@ void dump_buffer_waiters(void);
 
 int ebp_op_enqueue(uint32_t iid, const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
-int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out);
+int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_inout);
 
 int ebp_op_dequeue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 
-int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out);
-int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_out);
+int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_inout);
+int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_inout);
 int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16_t node_id, const unsigned char src_mac[6]);
 
 #endif

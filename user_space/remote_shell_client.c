@@ -26,15 +26,6 @@
 #define EBA_SERVICE_REMOTE_SHELL 12
 #define CMD_SIZE 512
 #define OUTPUT_SIZE 512
-
-enum INVOKE_STATUS
-{
-    INVOKE_QUEUED = 0,
-    INVOKE_COMPLETED,
-    INVOKE_FAILED,
-    INVOKE_DEFAULT
-};
-
 int main(void)
 {
 
@@ -63,10 +54,10 @@ int main(void)
     memcpy(buf, &client_cmd_id_holder, 8);
     memcpy(buf + 8, &client_out_id, 8);
     //send the buffer to the server
-    int iid = eba_remote_write(server_conn_id, 0, sizeof(buf), (const char *)buf, 0);
-    if (iid == 0)
+    int ret = eba_remote_write(server_conn_id, 0, sizeof(buf), (const char *)buf, 0, 0);
+    if (ret < 0)
     {
-        fprintf(stderr, "eba_remote_write (handshake) returned 0\n");
+        fprintf(stderr, "eba_remote_write (handshake) failed (rc=%d)\n", ret);
         return EXIT_FAILURE;
     }
     /* Wait for server to write its cmd buffer ID */
@@ -95,10 +86,10 @@ int main(void)
             line[len - 1] = '\0';
 
         /* Send the line to the cmd buffer */
-        iid = eba_remote_write(server_cmd_buf_id, 0, sizeof(line), line, 0);
-        if (iid == 0)
+        ret = eba_remote_write(server_cmd_buf_id, 0, sizeof(line), line, 0, 0);
+        if (ret < 0)
         {
-            fprintf(stderr, "eba_remote_write (cmd) returned 0\n");
+            fprintf(stderr, "eba_remote_write (cmd) failed (rc=%d)\n", ret);
             return EXIT_FAILURE;
         }
         eba_wait_buffer(client_out_id,0);

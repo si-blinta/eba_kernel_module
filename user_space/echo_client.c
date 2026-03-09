@@ -18,15 +18,6 @@
 #include <unistd.h>  
 #include "eba_user.h" 
 
-/* Same enum the server uses, needed for eba_wait_iid() */
-enum INVOKE_STATUS
-{
-    INVOKE_QUEUED = 0,
-    INVOKE_COMPLETED,
-    INVOKE_FAILED,
-    INVOKE_DEFAULT
-};
-
 int main(void)
 {
 
@@ -53,16 +44,10 @@ int main(void)
     printf("client handshake buffer = %lu\n", client_buf_id);
 
     /* Publish our buffer ID to the server’s connection buffer */
-    int iid = eba_remote_write(server_cn_buf_id, 0,8,(const char *)&client_buf_id,0);
-    int ret = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-    if (ret == 1)
+    int ret = eba_remote_write(server_cn_buf_id, 0, 8, (const char *)&client_buf_id, 0, 5000);
+    if (ret < 0)
     {
-        fprintf(stderr, "timeout writing to server buffer\n");
-        return EXIT_FAILURE;
-    }
-    else if (ret < 0)
-    {
-        fprintf(stderr, "error writing to server buffer\n");
+        fprintf(stderr, "error writing to server buffer (rc=%d)\n", ret);
         return EXIT_FAILURE;
     }
 
@@ -95,16 +80,10 @@ int main(void)
         if (len && msg[len - 1] == '\n')
             msg[len - 1] = '\0';
     
-        iid = eba_remote_write(echo_buf_id, 0, sizeof(msg), msg, 0);
-        ret = eba_wait_iid(iid, INVOKE_COMPLETED, 5000);
-        if (ret == 1)
+        ret = eba_remote_write(echo_buf_id, 0, sizeof(msg), msg, 0, 5000);
+        if (ret < 0)
         {
-            fprintf(stderr, "timeout writing echo message\n");
-            return EXIT_FAILURE;
-        }
-        else if (ret < 0)
-        {
-            fprintf(stderr, "error writing echo message\n");
+            fprintf(stderr, "error writing echo message (rc=%d)\n", ret);
             return EXIT_FAILURE;
         }
     

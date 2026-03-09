@@ -10,13 +10,6 @@ Given an array of integers, the program computes the sum of all elements in the 
 #include <unistd.h>
 #include <time.h>
 #include "eba_user.h"
-enum INVOKE_STATUS {
-    INVOKE_QUEUED = 0,    
-    INVOKE_COMPLETED,      
-    INVOKE_FAILED,
-    INVOKE_DEFAULT     
-};
-
 #define EBA_SERVICE_REDUCTION 66
 #define DEPOT 50
 #define ARRAY_SIZE 1024
@@ -82,8 +75,8 @@ int main()
         /*Register the depot as a queue */
         eba_register_queue(DEPOT);
         int remainder = ARRAY_SIZE % NODES;
-        eba_remote_write(EBA_SERVICE_REDUCTION, 0, sizeof(array)/NODES,(const char*)(array+remainder+ARRAY_SIZE/NODES) ,1);
-        eba_remote_write(EBA_SERVICE_REDUCTION, 0, sizeof(array)/NODES,(const char*)(array+remainder+2*ARRAY_SIZE/NODES), 2);
+        eba_remote_write(EBA_SERVICE_REDUCTION, 0, sizeof(array)/NODES, (const char*)(array+remainder+ARRAY_SIZE/NODES), 1, 0);
+        eba_remote_write(EBA_SERVICE_REDUCTION, 0, sizeof(array)/NODES, (const char*)(array+remainder+2*ARRAY_SIZE/NODES), 2, 0);
         int sum_count_received = 0;
         eba_wait_buffer(DEPOT, 0);
         int sum = 0;
@@ -127,7 +120,7 @@ int main()
         printf("\n");
         int sum = local_sum(chunk, sizeof(chunk)/sizeof(int));
         printf("Local sum: %d\n", sum);
-        eba_remote_enqueue(DEPOT, &sum, sizeof(int), 0);
+        eba_remote_enqueue(DEPOT, &sum, sizeof(int), 0, 0);
 
 
         

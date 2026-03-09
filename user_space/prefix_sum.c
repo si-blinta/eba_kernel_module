@@ -40,14 +40,6 @@ static void prefix_sum(int* buf, uint64_t buffer_id, uint64_t offset, uint64_t s
     
     eba_write(buf, buffer_id, offset, size * sizeof(int));
 }
-
-enum INVOKE_STATUS {
-    INVOKE_QUEUED = 0,    
-    INVOKE_COMPLETED,      
-    INVOKE_FAILED,
-    INVOKE_DEFAULT     
-};
-
 uint64_t get_mac_address() {
     const char *interface = "enp0s8";
     char path[256], mac_str[18];
@@ -103,11 +95,11 @@ int main()
         int* node1_ptr = array + SIZE/NODES + REMAINDER;
 
         size_t segment_bytes = (SIZE/NODES) * sizeof(int);
-        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node1_ptr, 1);
+        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node1_ptr, 1, 0);
 
         // Calculate the pointer and size for node 2's segment
         int* node2_ptr = array + (2*SIZE)/NODES + REMAINDER;
-        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node2_ptr, 2);
+        eba_remote_write(EBA_SERVICE_PREFIX_SUM, 0, segment_bytes, (const char*)node2_ptr, 2, 0);
         uint64_t local =eba_alloc((SIZE/NODES + REMAINDER)*sizeof(int),0,0);
         eba_write(array,local,0,(SIZE/NODES + REMAINDER)*sizeof(int));
         int result[SIZE] = {0};
@@ -157,9 +149,9 @@ int main()
         
 
         uint64_t depot_offset = ((node_id -1) * (SIZE/NODES) + REMAINDER) * sizeof(int); 
-        int iid = eba_remote_write(DEPOT, depot_offset, (SIZE/NODES)*sizeof(int), (const char*)result, 0);
-        if(iid == 0)
-            printf("erreur eba_remote_write\n");
+        int ret = eba_remote_write(DEPOT, depot_offset, (SIZE/NODES)*sizeof(int), (const char*)result, 0, 0);
+        if(ret < 0)
+            printf("erreur eba_remote_write (rc=%d)\n", ret);
 
     }
 

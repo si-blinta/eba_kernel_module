@@ -52,6 +52,49 @@ static long handle_eba_ioctl_remote_register_queue(unsigned long arg);
 static long handle_eba_ioctl_remote_enqueue(unsigned long arg);
 static long handle_eba_ioctl_remote_dequeue(unsigned long arg);
 
+/*
+ * eba_wait_for_ack() - sleep until the pre-registered waiter is signalled.
+ *
+ * The waiter must have been obtained with ebp_alloc_iid_waiter() *before*
+ * the corresponding request packet was sent.  That ordering ensures there is
+ * no window during which an ACK could arrive and be discarded because no
+ * waiter was registered yet.
+ *
+ * After this function returns, the waiter slot is released automatically.
+ *
+ * @w:          pre-registered iid_waiter (must not be NULL)
+ * @timeout_ms: maximum time to wait in milliseconds; 0 means wait forever
+ *
+ * Return: 0 on success, -ETIMEDOUT if the timeout expired before the ACK
+ *         arrived, or another negative errno set by the remote side.
+ */
+static long eba_wait_for_ack(struct iid_waiter *w, uint32_t timeout_ms)
+{
+     long rc;
+
+     /*
+      * Set state to INTERRUPTIBLE before checking w->done.  If the ACK
+      * already arrived (done==1) the check below will skip the scheduler
+      * call entirely, but the ordering guarantees we cannot miss a wakeup:
+      *
+      *   CPU A (ACK path)               CPU B (this path)
+      *   wake_up_process() → RUNNING    set_current_state(INTERRUPTIBLE)
+      *                                  READ_ONCE(w->done) == 1 → skip schedule
+      */
+     set_current_state(TASK_INTERRUPTIBLE);
+     if (!READ_ONCE(w->done)) {
+          if (timeout_ms)
+               schedule_timeout(msecs_to_jiffies(timeout_ms));
+          else
+               schedule();
+     }
+     __set_current_state(TASK_RUNNING);
+
+     rc = w->done ? (long)w->rc : -ETIMEDOUT;
+     ebp_free_iid_waiter(w);
+     return rc;
+}
+
 
 /*
  * IOCTL handler --------------------------------------------------------
@@ -183,11 +226,26 @@ static long handle_eba_ioctl_remote_alloc(unsigned long arg)
      if (copy_from_user(&ra, (void __user *)arg, sizeof(ra)))
           return -EFAULT;
 
-     int ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id, &ra.iid);
+     /* Pre-register waiter BEFORE sending the packet to eliminate the race
+      * where the ACK arrives before eba_wait_iid() could register a waiter. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     ra.iid = iid;
+
+     int ret = ebp_remote_alloc(ra.size, ra.life_time, ra.buffer_id, ra.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     ra.rc = (int)eba_wait_for_ack(w, ra.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &ra, sizeof(ra)))
           return -EFAULT;
 
-     return ret;
+     return 0;
 }
 
 // IOCTL handler for EBA_IOCTL_REMOTE_WRITE
@@ -197,11 +255,25 @@ static long handle_eba_ioctl_remote_write(unsigned long arg)
      if (copy_from_user(&rwr, (void __user *)arg, sizeof(rwr)))
           return -EFAULT;
 
-     int ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id, &rwr.iid);
+     /* Pre-register waiter BEFORE sending the packet. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     rwr.iid = iid;
+
+     int ret = ebp_remote_write(rwr.buff_id, rwr.offset, rwr.size, rwr.payload, rwr.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     rwr.rc = (int)eba_wait_for_ack(w, rwr.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &rwr, sizeof(rwr)))
           return -EFAULT;
 
-     return ret;
+     return 0;
 }
 
 // IOCTL handler for EBA_IOCTL_REMOTE_READ
@@ -211,11 +283,25 @@ static long handle_eba_ioctl_remote_read(unsigned long arg)
      if (copy_from_user(&rr, (void __user *)arg, sizeof(rr)))
           return -EFAULT;
 
-     int ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id, &rr.iid);
+     /* Pre-register waiter BEFORE sending the packet. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     rr.iid = iid;
+
+     int ret = ebp_remote_read(rr.dst_buffer_id, rr.src_buffer_id, rr.dst_offset, rr.src_offset, rr.size, rr.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     rr.rc = (int)eba_wait_for_ack(w, rr.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &rr, sizeof(rr)))
           return -EFAULT;
 
-     return ret;
+     return 0;
 }
 
 // IOCTL handler for EBA_IOCTL_DISCOVER
@@ -387,32 +473,77 @@ static long handle_eba_ioctl_remote_register_queue(unsigned long arg)
      if (copy_from_user(&rq, (void __user *)arg, sizeof(rq)))
           return -EFAULT;
 
-     int ret = ebp_remote_register_queue(rq.buff_id, rq.node_id, &rq.iid);
+     /* Pre-register waiter BEFORE sending the packet. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     rq.iid = iid;
+
+     int ret = ebp_remote_register_queue(rq.buff_id, rq.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     rq.rc = (int)eba_wait_for_ack(w, rq.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &rq, sizeof(rq)))
           return -EFAULT;
 
-     return ret;
+     return 0;
 }
 static long handle_eba_ioctl_remote_enqueue(unsigned long arg)
 {
      struct eba_remote_enqueue re;
      if (copy_from_user(&re, (void __user *)arg, sizeof(re)))
           return -EFAULT;
-     int ret = ebp_remote_enqueue(re.buff_id,re.size, (char *)re.data, re.node_id, &re.iid);
+
+     /* Pre-register waiter BEFORE sending the packet. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     re.iid = iid;
+
+     int ret = ebp_remote_enqueue(re.buff_id, re.size, (char *)re.data, re.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     re.rc = (int)eba_wait_for_ack(w, re.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &re, sizeof(re)))
           return -EFAULT;
 
-     return ret;
+     return 0;
 }
 static long handle_eba_ioctl_remote_dequeue(unsigned long arg)
 {
      struct eba_remote_dequeue rd;
      if (copy_from_user(&rd, (void __user *)arg, sizeof(rd)))
           return -EFAULT;
-     int ret = ebp_remote_dequeue(rd.dst_buffer_id,rd.src_buffer_id,rd.dst_offset,rd.size,rd.node_id,&rd.iid);
+
+     /* Pre-register waiter BEFORE sending the packet. */
+     uint32_t iid = 0;
+     struct iid_waiter *w = ebp_alloc_iid_waiter(&iid, current);
+     if (!w)
+          return -ENOSPC;
+     rd.iid = iid;
+
+     int ret = ebp_remote_dequeue(rd.dst_buffer_id, rd.src_buffer_id, rd.dst_offset, rd.size, rd.node_id, &iid);
+     if (ret < 0) {
+          ebp_free_iid_waiter(w);
+          return ret;
+     }
+
+     rd.rc = (int)eba_wait_for_ack(w, rd.timeout_ms);
+
      if (copy_to_user((void __user *)arg, &rd, sizeof(rd)))
           return -EFAULT;
-     return ret;
+
+     return 0;
 }
 
 /* Timer for checking expired buffers */
