@@ -6,14 +6,6 @@
 
 #define MAX_LINE 2048
 #define MAX_TOKENS 16
-
-enum INVOKE_STATUS {
-    INVOKE_QUEUED = 0,    
-    INVOKE_COMPLETED,      
-    INVOKE_FAILED,
-    INVOKE_DEFAULT     
-};
-
 /* Reads a line from stdin, returns NULL on EOF */
 static char *read_line(char *buf, size_t sz) {
     if (!fgets(buf, sz, stdin))
@@ -123,8 +115,11 @@ int main(void) {
                    (unsigned long long)local_id,
                    (unsigned long long)size,
                    (unsigned long long)lifetime);
-            int iid = eba_remote_alloc(size,lifetime,local_id,node_id);
-            printf("IID = %d\n",iid);
+            int rc = eba_remote_alloc(size, lifetime, local_id, node_id, 0);
+            if (rc < 0)
+                fprintf(stderr, "remote_alloc failed (rc=%d)\n", rc);
+            else
+                printf("  -> remote alloc completed\n");
         }
         else if (strcmp(tok[0], "remote_write")==0 && ntoks>=5) {
             uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
@@ -141,12 +136,11 @@ int main(void) {
                    (unsigned long long)buf_id,
                    (unsigned long long)offset,
                    str, len);
-            int iid = eba_remote_write(buf_id,offset,len,str,node_id);
-            printf("waiting for complete\n");
-            int timeout = eba_wait_iid(iid,INVOKE_COMPLETED,10000);
-            if(timeout == 1)
-                printf("timed out  \n");
-            printf("IID = %d\n",iid);
+            int rc = eba_remote_write(buf_id, offset, len, str, node_id, 10000);
+            if (rc < 0)
+                fprintf(stderr, "remote_write failed (rc=%d)\n", rc);
+            else
+                printf("  -> remote write completed\n");
         }
         else if (strcmp(tok[0], "remote_read")==0 && ntoks==7) {
             uint16_t node_id = (uint16_t)strtoul(tok[1], NULL, 0);
@@ -162,8 +156,11 @@ int main(void) {
                    (unsigned long long)dst_id,
                    (unsigned long long)dst_off,
                    (unsigned long long)size);
-            int iid = eba_remote_read(dst_id,src_id,dst_off,src_off,size,node_id);
-            printf("IID = %d\n",iid);
+            int rc = eba_remote_read(dst_id, src_id, dst_off, src_off, size, node_id, 0);
+            if (rc < 0)
+                fprintf(stderr, "remote_read failed (rc=%d)\n", rc);
+            else
+                printf("  -> remote read completed\n");
         }
         else if (strcmp(tok[0], "discover")==0) {
             eba_discover();
@@ -216,7 +213,9 @@ int main(void) {
             uint64_t buf_id = strtoull(tok[1], NULL, 0);
             uint16_t node_id = (uint16_t)strtoul(tok[2], NULL, 0);
             printf("Registering queue on node %u as buffer %llu\n",node_id,(unsigned long long)buf_id);
-            eba_remote_register_queue(buf_id, node_id);
+            int rc = eba_remote_register_queue(buf_id, node_id, 0);
+            if (rc < 0)
+                fprintf(stderr, "remote_register_queue failed (rc=%d)\n", rc);
         }
         else if (strcmp(tok[0], "remote_enqueue") == 0 && ntoks == 4) {
             uint64_t buf_id = strtoull(tok[1], NULL, 0);
@@ -224,7 +223,9 @@ int main(void) {
             uint16_t node_id = (uint16_t)strtoul(tok[3], NULL, 0);
             uint64_t size   = strlen(payload);
             printf("Enqueueing %llu bytes to buffer %llu on node %u. Payload: %s\n",(unsigned long long)size,(unsigned long long)buf_id,node_id,payload);
-            eba_remote_enqueue(buf_id, payload, size, node_id);
+            int rc = eba_remote_enqueue(buf_id, payload, size, node_id, 0);
+            if (rc < 0)
+                fprintf(stderr, "remote_enqueue failed (rc=%d)\n", rc);
         }
         else if (strcmp(tok[0], "remote_dequeue") == 0 && ntoks == 6) {
             uint64_t src_buf_id = strtoull(tok[1], NULL, 0);
@@ -238,7 +239,9 @@ int main(void) {
                node_id,
                (unsigned long long)dst_buf_id,
                (unsigned long long)dst_offset);
-            eba_remote_dequeue(src_buf_id,dst_buf_id,dst_offset,size,node_id);
+            int rc = eba_remote_dequeue(src_buf_id, dst_buf_id, dst_offset, size, node_id, 0);
+            if (rc < 0)
+                fprintf(stderr, "remote_dequeue failed (rc=%d)\n", rc);
         }
 
         else {

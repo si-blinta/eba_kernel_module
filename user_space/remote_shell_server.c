@@ -26,15 +26,6 @@
 #define EBA_SERVICE_REMOTE_SHELL 12
 #define CMD_SIZE 512
 #define OUTPUT_SIZE 512
-
-enum INVOKE_STATUS
-{
-    INVOKE_QUEUED = 0,
-    INVOKE_COMPLETED,
-    INVOKE_FAILED,
-    INVOKE_DEFAULT
-};
-
 /* Execute a shell command and capture its stdout */
 static void execute_cmd(const char *cmd, char out[OUTPUT_SIZE])
 {    
@@ -117,10 +108,10 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    int iid = eba_remote_write(client_cmd_holder_id, 0, 8,(const char *)&cmd_buf_id, 0);
-    if (iid == 0)
+    int ret_wr = eba_remote_write(client_cmd_holder_id, 0, 8, (const char *)&cmd_buf_id, 0, 0);
+    if (ret_wr < 0)
     {
-        fprintf(stderr, "eba_remote_write returned 0\n");
+        fprintf(stderr, "eba_remote_write failed (rc=%d)\n", ret_wr);
         return EXIT_FAILURE;
     }
     printf("cmd_buf_id sent to client = %lu (Client sends his commands here)\n", cmd_buf_id);
@@ -152,7 +143,7 @@ int main(void)
         execute_cmd((char *)cmd, output);
 
         /* Send output to client */
-        if (eba_remote_write(client_output_id, 0, sizeof(output), output, 0) == 0)
+        if (eba_remote_write(client_output_id, 0, sizeof(output), output, 0, 0) < 0)
         {
             fprintf(stderr, "eba_remote_write failed (output)\n");
             return EXIT_FAILURE;

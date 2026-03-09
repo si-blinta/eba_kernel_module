@@ -99,7 +99,8 @@ int eba_read(void *data_out, uint64_t buf_id, uint64_t off, uint64_t size)
 
 
 int eba_remote_alloc(uint64_t size, uint64_t life_time,
-                     uint64_t local_buff_id, uint16_t node_id)
+                     uint64_t local_buff_id, uint16_t node_id,
+                     uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_alloc remote;
@@ -110,23 +111,26 @@ int eba_remote_alloc(uint64_t size, uint64_t life_time,
     remote.life_time = life_time;
     remote.buffer_id = local_buff_id;
     remote.node_id = node_id;
+    remote.timeout_ms = timeout_ms;
 
     fd = open_eba_device();
     if (fd < 0)
-        return 0;
+        return -1;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_ALLOC, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_ALLOC)");
-        return 0;
+        return -1;
     }
-    return remote.iid;
+    /* remote.rc: 0 on success, negative on error, -ETIMEDOUT on timeout */
+    return remote.rc;
 }
 
 int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
-                     const char *payload, uint16_t node_id)
+                     const char *payload, uint16_t node_id,
+                     uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_write remote;
@@ -138,24 +142,26 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,
     remote.size = size;
     remote.payload = (char*) payload;
     remote.node_id = node_id;
+    remote.timeout_ms = timeout_ms;
     /* copy the payload into the struct and the mac address */
     memcpy((void *)remote.payload, payload, remote.size);
 
     fd = open_eba_device();
     if (fd < 0)
-        return 0;
+        return -1;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_WRITE, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_WRITE)");
-        return 0;
+        return -1;
     }
-    return remote.iid;
+    /* remote.rc: 0 on success, negative on error, -ETIMEDOUT on timeout */
+    return remote.rc;
 }
 
-int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size,uint16_t node_id )
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id, uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_read remote;
@@ -168,19 +174,21 @@ int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     remote.src_offset = src_offset;
     remote.size = size;
     remote.node_id = node_id;
+    remote.timeout_ms = timeout_ms;
 
     fd = open_eba_device(); 
     if (fd < 0)
-        return 0;
+        return -1;
     ret = ioctl(fd, EBA_IOCTL_REMOTE_READ, &remote);
     close(fd);
 
     if (ret < 0)
     {
         perror("ioctl(EBA_IOCTL_REMOTE_READ)");
-        return 0;
+        return -1;
     }
-    return remote.iid;
+    /* remote.rc: 0 on success, negative on error, -ETIMEDOUT on timeout */
+    return remote.rc;
 }
 
 int eba_discover(void)
@@ -381,7 +389,7 @@ int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size)
     return 0 ;
 }
 
-int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id)
+int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id, uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_register_queue rq;
@@ -390,6 +398,7 @@ int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id)
     memset(&rq, 0, sizeof(rq));
     rq.buff_id = buff_id;
     rq.node_id = node_id;
+    rq.timeout_ms = timeout_ms;
 
     fd = open_eba_device();
     if (fd < 0)
@@ -402,10 +411,10 @@ int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id)
         perror("ioctl(EBA_IOCTL_REMOTE_REGISTER_QUEUE)");
         return -1;
     }
-    return rq.iid ;
+    return rq.rc;
 }
 
-int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id)
+int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id, uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_enqueue re;
@@ -416,6 +425,7 @@ int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t nod
     re.data = (uint64_t)data;
     re.size = size;
     re.node_id = node_id;
+    re.timeout_ms = timeout_ms;
     fd = open_eba_device();
     if (fd < 0)
         return -1;
@@ -427,9 +437,9 @@ int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t nod
         perror("ioctl(EBA_IOCTL_REMOTE_ENQUEUE)");
         return -1;
     }
-    return re.iid;
+    return re.rc;
 }
-int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id)
+int eba_remote_dequeue(uint64_t src_buff_id, uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id, uint32_t timeout_ms)
 {
     int fd, ret;
     struct eba_remote_dequeue rd;
@@ -441,6 +451,7 @@ int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_o
     rd.dst_offset = dst_offset;
     rd.size = size;
     rd.node_id = node_id;
+    rd.timeout_ms = timeout_ms;
 
     fd = open_eba_device();
     if (fd < 0)
@@ -453,5 +464,5 @@ int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_o
         perror("ioctl(EBA_IOCTL_REMOTE_DEQUEUE)");
         return -1;
     }
-    return rd.iid;
+    return rd.rc;
 }

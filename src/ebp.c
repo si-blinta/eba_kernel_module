@@ -500,7 +500,7 @@ int ebp_op_register_queue(uint32_t iid,const void *args, uint64_t arg_len,uint16
 
 static const unsigned char broadcast_mac[6]={0xff,0xff,0xff,0xff,0xff,0xff};
 
-int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: size=%llu life_time=%llu local_id=%llu node_id=%u\n",__func__, 
             size, life_time, local_buff_id, node_id);
@@ -524,9 +524,14 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
         EBA_ERR("%s: invalid node_id=%u\n", __func__, node_id);
         return -EINVAL;
     }
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_ALLOC, (char *)&alloc_args, sizeof(alloc_args), NULL, 0, dest_mac, INTERFACE_NAME);
 
     
@@ -540,7 +545,7 @@ int ebp_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, 
     return 0;
 }
 
-int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: buff_id=%llu off=%llu size=%llu node_id=%u\n",__func__, 
             buff_id, offset, size, node_id);
@@ -564,9 +569,14 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
         return -EINVAL;
     }
     
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_WRITE, (char *)&write_args, sizeof(write_args), payload, write_args.size,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
@@ -577,7 +587,7 @@ int ebp_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const cha
     return 0;
 }
 
-int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: dst_buffer_id=%llu src_buffer_id=%llu dst_offset=%llu src_offset=%llu size=%llu node_id=%u\n",__func__, 
         dst_buffer_id, src_buffer_id, dst_offset, src_offset, size, node_id);
@@ -603,9 +613,14 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
         return -EINVAL;
     }
     
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_READ, (char *)&read_args, sizeof(read_args), NULL, 0, dest_mac, INTERFACE_NAME);
     if (ret < 0)
     {
@@ -616,7 +631,7 @@ int ebp_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst
     return 0;
 }
 
-int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t size, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: dst_buffer_id=%llu src_buffer_id=%llu dst_offset=%llu size=%llu node_id=%u\n",__func__, 
         dst_buffer_id, src_buffer_id, dst_offset, size, node_id);
@@ -642,9 +657,14 @@ int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t 
         return -EINVAL;
     }
     
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_DEQUEUE, (char *)&dequeue_args, sizeof(dequeue_args), NULL, 0, dest_mac, INTERFACE_NAME);
     if (ret < 0)
     {
@@ -655,7 +675,7 @@ int ebp_remote_dequeue(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t 
     return 0;
 }
 
-int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: buff_id=%llu size=%llu node_id=%u\n",__func__, 
             buff_id, size, node_id);
@@ -679,9 +699,14 @@ int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uin
         return -EINVAL;
     }
     
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_ENQUEUE, (char *)&enqueue_args, sizeof(enqueue_args), payload, enqueue_args.size,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
@@ -692,7 +717,7 @@ int ebp_remote_enqueue(uint64_t buff_id, uint64_t size, const char *payload, uin
     return 0;
 }
 
-int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_out)
+int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_inout)
 {
     EBA_DBG("%s: buff_id=%llu node_id=%u\n",__func__, buff_id,node_id);
 
@@ -713,9 +738,14 @@ int ebp_remote_register_queue(uint64_t buff_id, uint16_t node_id,uint32_t *iid_o
         return -EINVAL;
     }
     
-    uint32_t iid = ebp_next_iid();
-    if (iid_out)
-                *iid_out = iid;
+    uint32_t iid;
+    if (iid_inout && *iid_inout != 0) {
+        iid = *iid_inout;
+    } else {
+        iid = ebp_next_iid();
+        if (iid_inout)
+            *iid_inout = iid;
+    }
     int ret = send_invoke_req_packet(iid, EBP_OP_REGISTER_QUEUE, (char *)&reg_args, sizeof(reg_args), NULL,0,dest_mac , INTERFACE_NAME);
     if (ret < 0)
     {
@@ -1031,11 +1061,11 @@ int ebp_handle_invoke_ack(struct sk_buff *skb, struct net_device *dev,
             struct iid_waiter *w = &iid_waiters[i];
 
             if (w->iid &&
-                w->iid == ntohl(ack->iid) &&
-                w->wanted_status == ack->status) {
+                w->iid == ntohl(ack->iid)) {
 
                     w->done = 1;
-                    w->rc   = 0;          /* success                 */
+                    /* 0 for success, -EIO for any failure status */
+                    w->rc   = (ack->status == INVOKE_COMPLETED) ? 0 : -EIO;
 
                     if (w->task)
                             wake_up_process(w->task);
@@ -1170,6 +1200,41 @@ struct iid_waiter * iid_waiter_alloc(u32 iid, u8 wanted_stat, struct task_struct
                 }
         }
         return NULL;                                /* table full      */
+}
+
+/*
+ * ebp_alloc_iid_waiter() - atomically generate a fresh IID and pre-register a
+ *                          waiter for it.
+ *
+ * The IID is generated and the waiter slot is reserved in a single critical
+ * section.  This guarantees that an incoming ACK can never slip through
+ * between the moment the packet is sent and the moment the waiter is
+ * installed, which is the root cause of the previous deadlock.
+ */
+struct iid_waiter *ebp_alloc_iid_waiter(uint32_t *iid_out, struct task_struct *tsk)
+{
+        uint32_t iid;
+        struct iid_waiter *w;
+
+        iid = ebp_next_iid();
+
+        spin_lock(&waiter_lock);
+        w = iid_waiter_alloc(iid, INVOKE_COMPLETED, tsk);
+        spin_unlock(&waiter_lock);
+
+        if (w && iid_out)
+                *iid_out = iid;
+
+        return w;
+}
+
+void ebp_free_iid_waiter(struct iid_waiter *w)
+{
+        if (!w)
+                return;
+        spin_lock(&waiter_lock);
+        w->iid = 0;
+        spin_unlock(&waiter_lock);
 }
 
 

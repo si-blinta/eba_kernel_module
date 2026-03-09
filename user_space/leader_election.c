@@ -12,13 +12,6 @@
 #include <unistd.h>
 #include <time.h>
 #include "eba_user.h"
-enum INVOKE_STATUS {
-    INVOKE_QUEUED = 0,    
-    INVOKE_COMPLETED,      
-    INVOKE_FAILED,
-    INVOKE_DEFAULT     
-};
-
 uint64_t get_mac_address() {
     const char *interface = "enp0s8";
     char path[256], mac_str[18];
@@ -93,8 +86,8 @@ int main()
         candidate_macs[received_msg++] = mac;
 
         printf("Broadcast Enqueuing MAC address: %016lx\n", mac);
-        int iid = eba_remote_enqueue(EBA_SERVICE_LE, &mac, sizeof(mac), 0);
-        if (iid < 0) {
+        int ret = eba_remote_enqueue(EBA_SERVICE_LE, &mac, sizeof(mac), 0, 0);
+        if (ret < 0) {
             fprintf(stderr, "Failed to enqueue MAC address\n");
             return EXIT_FAILURE;
         }
@@ -128,8 +121,8 @@ int main()
     printf("The leader is: %016lx\n", leader_mac);
     
     // Broadcast the leader MAC to all nodes.
-    int iid = eba_remote_enqueue(EBA_SERVICE_LE, &leader_mac, sizeof(leader_mac), 0);
-    if (iid < 0) {
+    int ret_leader = eba_remote_enqueue(EBA_SERVICE_LE, &leader_mac, sizeof(leader_mac), 0, 0);
+    if (ret_leader < 0) {
         fprintf(stderr, "Failed to enqueue leader MAC address\n");
         return EXIT_FAILURE;
     }

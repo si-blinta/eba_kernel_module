@@ -64,23 +64,25 @@ int eba_read(void* data_out, uint64_t buff_id, uint64_t off, uint64_t size);
  * @size:          The size (in bytes) of the requested buffer.
  * @life_time:     The life time for the allocation in seconds; 0 indicates "infinite".
  * @local_buff_id: The local buffer identifier where the remote buffer ID will be stored.
- * @node_id:    Target node id .
+ * @node_id:       Target node id.
+ * @timeout_ms:    Maximum time to wait for completion in milliseconds; 0 means wait forever.
  *
- * Return: IID on success, or 0 on failure.
+ * Return: 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id,uint16_t node_id);
+int eba_remote_alloc(uint64_t size, uint64_t life_time, uint64_t local_buff_id, uint16_t node_id, uint32_t timeout_ms);
 
 /**
  * eba_remote_write - Write data to a remote allocated buffer via IOCTL.
- * @buff_id: The identifier of the remote buffer.
- * @offset:  The offset (in bytes) within the remote buffer where writing should begin.
- * @size:    The number of bytes of the payload to write.
- * @payload: Pointer to the data payload.
+ * @buff_id:    The identifier of the remote buffer.
+ * @offset:     The offset (in bytes) within the remote buffer where writing should begin.
+ * @size:       The number of bytes of the payload to write.
+ * @payload:    Pointer to the data payload.
  * @node_id:    Target node id.
+ * @timeout_ms: Maximum time to wait for completion in milliseconds; 0 means wait forever.
  *
-* Return: IID on success, or 0 on failure.
+ * Return: 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char* payload ,uint16_t node_id);
+int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size, const char* payload, uint16_t node_id, uint32_t timeout_ms);
 
 /**
  * eba_remote_read - Read data from a remote allocated buffer via IOCTL.
@@ -89,11 +91,12 @@ int eba_remote_write(uint64_t buff_id, uint64_t offset, uint64_t size,const char
  * @dst_offset:    The offset (in bytes) within the destination buffer where data should be written.
  * @src_offset:    The offset (in bytes) within the source buffer where reading begins.
  * @size:          The number of bytes to read.
- * @node_id:    Target node id.
+ * @node_id:       Target node id.
+ * @timeout_ms:    Maximum time to wait for completion in milliseconds; 0 means wait forever.
  *
-* Return: IID on success, or 0 on failure.
+ * Return: 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset,uint64_t src_offset ,uint64_t size,uint16_t node_id);
+int eba_remote_read(uint64_t dst_buffer_id, uint64_t src_buffer_id, uint64_t dst_offset, uint64_t src_offset, uint64_t size, uint16_t node_id, uint32_t timeout_ms);
 
 /**
  * eba_discover - Initiate remote node discovery from user space.
@@ -191,33 +194,36 @@ int eba_dequeue(uint64_t buff_id, void *data_out, uint64_t size);
 /**
  * eba_remote_register_queue() - make a buffer as a queue remotely.
  * @brief: the idea is to structure a buffer to be able to use queue operations.
- * @buff_id: target buffer
- * @node_id: target node
- * @return an iid on success, or a 0 on failure.
+ * @buff_id:    target buffer
+ * @node_id:    target node
+ * @timeout_ms: Maximum time to wait for completion in milliseconds; 0 means wait forever.
+ * @return 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id);
+int eba_remote_register_queue(uint64_t buff_id, uint16_t node_id, uint32_t timeout_ms);
 
 /**
  * eba_remote_enqueue() - Enqueue data to a buffer remotely.
- * @buff_id: target buffer (needs to be registred as queue)
- * @data: the data to enqueue
- * @size: size of the data
- * @node_id: target node id
- * @return an iid on success, or a 0 on failure.
+ * @buff_id:    target buffer (needs to be registered as queue)
+ * @data:       the data to enqueue
+ * @size:       size of the data
+ * @node_id:    target node id
+ * @timeout_ms: Maximum time to wait for completion in milliseconds; 0 means wait forever.
+ * @return 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id);
+int eba_remote_enqueue(uint64_t buff_id, void *data, uint64_t size, uint16_t node_id, uint32_t timeout_ms);
 
 
 /**
  * eba_remote_dequeue() - Dequeue data from a buffer remotely.
  * @src_buff_id: target buffer
- * @dst_buff_id: output
- * @dst_offset: offset in the destination buffer
- * @size: size of data to dequeue 
- * @node_id: target node id
- * @return an iid on success, or a 0 on failure.
+ * @dst_buff_id: output buffer
+ * @dst_offset:  offset in the destination buffer
+ * @size:        size of data to dequeue
+ * @node_id:     target node id
+ * @timeout_ms:  Maximum time to wait for completion in milliseconds; 0 means wait forever.
+ * @return 0 on success, -ETIMEDOUT on timeout, or a negative error code on failure.
  */
-int eba_remote_dequeue(uint64_t src_buff_id,uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id);
+int eba_remote_dequeue(uint64_t src_buff_id, uint64_t dst_buff_id, uint64_t dst_offset, uint64_t size, uint16_t node_id, uint32_t timeout_ms);
 
 
 
