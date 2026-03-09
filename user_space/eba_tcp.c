@@ -525,6 +525,9 @@ int eba_tcp_recv(struct eba_tcp_conn *conn, void *buf, size_t max_size,
 
         if (seg.data_len > 0 && total < max_size) {
             uint32_t copy = seg.data_len;
+            /* Clamp to the actual on-wire payload array to prevent overread */
+            if (copy > EBA_TCP_MAX_DATA)
+                copy = EBA_TCP_MAX_DATA;
             if (total + copy > max_size)
                 copy = (uint32_t)(max_size - total);
             memcpy(out + total, seg.data, copy);
