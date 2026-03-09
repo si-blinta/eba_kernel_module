@@ -20,18 +20,34 @@ LDFLAGS = -L$(LIB_DIR) -leba -Wl,-rpath,$(LIB_DIR)
 LDFLAGS_FFMPEG = -lavformat -lavcodec -lswscale -lavutil -ljpeg -lX11
 LDFLAGS_FFMPEG_CLIENT = -lavformat -lavcodec -lswscale -lavutil -ljpeg -lSDL2
 
-# Collect all C source files and derive executables names from them.
-C_SOURCES = $(wildcard *.c)
+# eba_tcp.c is a shared library module, not a standalone executable.
+# Exclude it from the list of programs produced by the generic pattern rule.
+EBA_TCP_LIB_SRC = eba_tcp.c
+EBA_TCP_LIB_OBJ = eba_tcp.o
+
+# Collect all C sources that have a main() function.
+C_SOURCES = $(filter-out $(EBA_TCP_LIB_SRC), $(wildcard *.c))
 TARGETS   = $(basename $(C_SOURCES))
 
 .PHONY: all clean
 
-all: $(TARGETS)
+all: $(EBA_TCP_LIB_OBJ) $(TARGETS)
 	@echo "Build complete. Run 'export LD_LIBRARY_PATH=$(LIB_DIR)' and then './<program>' to execute any application."
 
-# Pattern rule to compile each C file into an executable.
+# Compile the shared TCP helper object.
+$(EBA_TCP_LIB_OBJ): $(EBA_TCP_LIB_SRC) $(INCLUDE_DIR)/eba_tcp.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Pattern rule to compile each standalone C file into an executable.
 %: %.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+# Explicit rules for programs that depend on the EBA TCP library.
+eba_httpd: eba_httpd.c $(EBA_TCP_LIB_OBJ) $(INCLUDE_DIR)/eba_tcp.h
+	$(CC) $(CFLAGS) -o $@ eba_httpd.c $(EBA_TCP_LIB_OBJ) $(LDFLAGS)
+
+eba_http_client: eba_http_client.c $(EBA_TCP_LIB_OBJ) $(INCLUDE_DIR)/eba_tcp.h
+	$(CC) $(CFLAGS) -o $@ eba_http_client.c $(EBA_TCP_LIB_OBJ) $(LDFLAGS)
 
 # Explicit rules for streaming targets with FFmpeg and extra libs
 server_streaming: server_streaming.c
@@ -41,5 +57,5 @@ client_streaming: client_streaming.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_FFMPEG_CLIENT)
 
 clean:
-	rm -f $(TARGETS)
+	rm -f $(TARGETS) $(EBA_TCP_LIB_OBJ)
 	@echo "Clean complete."

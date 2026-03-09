@@ -22,7 +22,15 @@
 #include <linux/errno.h>       
 /** Size of the memory pool in bytes. */
 #define MEMORY_POOL_SIZE (1024 * 1024)*1000
-#define EBA_MAX_SERVICES 100
+/*
+ * EBA_MAX_SERVICES - upper bound for service/port IDs registered via
+ * eba_register_service().  Dynamic buffer IDs begin at EBA_MAX_SERVICES so
+ * they never collide with service IDs.
+ *
+ * The value 65536 covers the full TCP/UDP port range (1-65535) while keeping
+ * dynamic buffer IDs starting at 65536.
+ */
+#define EBA_MAX_SERVICES 65536
 /**
  * struct eba_buffer - Tracking structure for each allocated memory chunk.
  * @lock:    Spinlock to protect this buffer's data.
